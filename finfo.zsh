@@ -773,83 +773,76 @@ finfo() {
 
   # 5) Security & provenance
     local want_secprov=$(( opt_brief ? 0 : 1 ))
+    # Compute security info when pretty+wanted OR for json/porcelain
+    local do_sec_compute=$(( (emit_pretty && want_secprov) || opt_porcelain || opt_json ))
+    local gk_assess="unknown" cs_signed=0 cs_status="unknown" cs_team="" cs_auth="" nota_stapled="unknown" quarantine_present="no" froms="" qstr="" verdict="unknown"
+    if (( do_sec_compute )); then
+      if [[ $OSTYPE == darwin* && ! -d "$target" ]]; then
+        if print -r -- "$file_desc" | grep -Eq 'Mach-O|executable|dylib|shared library'; then
+          if command -v spctl >/dev/null 2>&1; then
+            local _spout
+            _spout=$(spctl --assess -vv --type execute -- "$path_arg" 2>&1)
+            if [[ $? -eq 0 ]]; then gk_assess="pass"; else gk_assess="fail"; fi
+          fi
+          if command -v codesign >/dev/null 2>&1; then
+            local _csinfo _csverr
+            _csinfo=$(codesign -dv --verbose=2 -- "$path_arg" 2>&1)
+            if [[ $? -eq 0 ]]; then cs_signed=1; fi
+            _csverr=$(codesign --verify --deep --strict -- "$path_arg" 2>&1)
+            if [[ $? -eq 0 ]]; then cs_status="valid"; else cs_status="invalid"; fi
+            cs_team=$(print -r -- "$_csinfo" | sed -nE 's/^TeamIdentifier=(.*)$/\1/p' | head -n1)
+            cs_auth=$(print -r -- "$_csinfo" | sed -nE 's/^Authority=(.*)$/\1/p' | head -n1)
+          fi
+          if command -v xcrun >/dev/null 2>&1; then
+            local _stout
+            _stout=$(xcrun stapler validate -- "$path_arg" 2>&1)
+            if [[ $? -eq 0 ]]; then nota_stapled="ok"; else nota_stapled="missing"; fi
+          fi
+        fi
+      fi
+      if [[ $OSTYPE == darwin* ]]; then
+        qstr=$(xattr -p com.apple.quarantine "$path_arg" 2>/dev/null)
+        [[ -n "$qstr" ]] && quarantine_present="yes"
+        froms=$(mdls -name kMDItemWhereFroms -raw "$path_arg" 2>/dev/null)
+        [[ "$froms" == "(null)" ]] && froms=""
+      fi
+      if [[ "$gk_assess" == pass && "$cs_status" == valid && "$quarantine_present" == no ]]; then
+        verdict="safe"
+      elif [[ "$gk_assess" == fail || "$cs_status" == invalid ]]; then
+        verdict="unsafe"
+      elif [[ "$quarantine_present" == yes ]]; then
+        verdict="caution"
+      fi
+    fi
     if (( emit_pretty && want_secprov )); then
-  _section "SECURITY & PROVENANCE" perms
-  # Gatekeeper / Codesign / Notarization (macOS only; best-effort)
-  local gk_assess="unknown" cs_signed=0 cs_status="unknown" cs_team="" cs_auth="" nota_stapled="unknown"
-  if [[ $OSTYPE == darwin* && ! -d "$target" ]]; then
-    # Only attempt for executables or Mach-O files; avoid noisy output for plain docs
-    if print -r -- "$file_desc" | grep -Eq 'Mach-O|executable|dylib|shared library'; then
-      if command -v spctl >/dev/null 2>&1; then
-        local _spout
-        _spout=$(spctl --assess -vv --type execute -- "$path_arg" 2>&1)
-        if [[ $? -eq 0 ]]; then gk_assess="pass"; else gk_assess="fail"; fi
+      _section "SECURITY & PROVENANCE" perms
+      if [[ "$verdict" != "unknown" || "$gk_assess" != "unknown" || $cs_signed -eq 1 || "$nota_stapled" != "unknown" ]]; then
+        local vr_col="$WHITE"
+        case "$verdict" in
+          safe) vr_col="$GREEN";; caution) vr_col="$YELLOW";; unsafe) vr_col="$RED";;
+        esac
+        _kv "Verdict" "${vr_col}${verdict}${RESET} ${DIM}(gatekeeper:${gk_assess} codesign:${cs_status}${cs_team:+ team:${cs_team}}${nota_stapled:+ notarization:${nota_stapled}})${RESET}"
       fi
-      if command -v codesign >/dev/null 2>&1; then
-        local _csinfo _csverr
-        _csinfo=$(codesign -dv --verbose=2 -- "$path_arg" 2>&1)
-        if [[ $? -eq 0 ]]; then cs_signed=1; fi
-        _csverr=$(codesign --verify --deep --strict -- "$path_arg" 2>&1)
-        if [[ $? -eq 0 ]]; then cs_status="valid"; else cs_status="invalid"; fi
-        cs_team=$(print -r -- "$_csinfo" | sed -nE 's/^TeamIdentifier=(.*)$/\1/p' | head -n1)
-        cs_auth=$(print -r -- "$_csinfo" | sed -nE 's/^Authority=(.*)$/\1/p' | head -n1)
+      if [[ $OSTYPE == darwin* ]]; then
+        local -a xas; xas=()
+        if command -v xattr >/dev/null 2>&1; then
+          xas=( $(xattr -l "$path_arg" 2>/dev/null | sed -n 's/^\([^:]*\):.*/\1/p') )
+        fi
+        local acl_present=0
+        if command -v ls >/dev/null 2>&1; then
+          ls -le "$path_arg" 2>/dev/null | grep -q '^\s*[0-9]\+:' && acl_present=1
+        fi
+        if [[ -n "$qstr" ]]; then _kv "Quarantine" "${YELLOW}yes${RESET} ${DIM}(${qstr%%;*})${RESET}"; fi
+        if [[ -n "$froms" ]]; then _kv "WhereFroms" "${froms}"; fi
+        if (( opt_verbose )); then
+          if (( ${#xas} > 0 )); then
+            printf "  %s%-*s %s\n" "$LABEL" 12 "XAttr:" ""
+            local xa; for xa in "${xas[@]}"; do printf "  %s  %s\n" "$LABEL" "$xa"; done
+          fi
+          (( acl_present )) && _kv "ACL" "present"
+        fi
       fi
-      # Notarization staple check
-      if command -v xcrun >/dev/null 2>&1; then
-        local _stout
-        _stout=$(xcrun stapler validate -- "$path_arg" 2>&1)
-        if [[ $? -eq 0 ]]; then nota_stapled="ok"; else nota_stapled="missing"; fi
-      fi
     fi
-    fi
-  # Verdict (simple heuristic)
-  local quarantine_present="no"
-    if [[ $OSTYPE == darwin* ]]; then
-    local _qtmp
-    _qtmp=$(xattr -p com.apple.quarantine "$path_arg" 2>/dev/null)
-    [[ -n "$_qtmp" ]] && quarantine_present="yes"
-    fi
-  local verdict="unknown"
-  if [[ "$gk_assess" == pass && "$cs_status" == valid && "$quarantine_present" == no ]]; then
-    verdict="safe"
-  elif [[ "$gk_assess" == fail || "$cs_status" == invalid ]]; then
-    verdict="unsafe"
-  elif [[ "$quarantine_present" == yes ]]; then
-    verdict="caution"
-  fi
-  # Summary line
-  if [[ "$verdict" != "unknown" || "$gk_assess" != "unknown" || $cs_signed -eq 1 || "$nota_stapled" != "unknown" ]]; then
-    local vr_col="$WHITE"
-    case "$verdict" in
-      safe) vr_col="$GREEN";; caution) vr_col="$YELLOW";; unsafe) vr_col="$RED";;
-    esac
-    _kv "Verdict" "${vr_col}${verdict}${RESET} ${DIM}(gatekeeper:${gk_assess} codesign:${cs_status}${cs_team:+ team:${cs_team}}${nota_stapled:+ notarization:${nota_stapled}})${RESET}"
-  fi
-  # macOS xattrs/ACL (shown when verbose or present)
-  if [[ $OSTYPE == darwin* ]]; then
-    local -a xas; xas=()
-    if command -v xattr >/dev/null 2>&1; then
-      xas=( $(xattr -l "$path_arg" 2>/dev/null | sed -n 's/^\([^:]*\):.*/\1/p') )
-    fi
-    local acl_present=0
-    if command -v ls >/dev/null 2>&1; then
-      ls -le "$path_arg" 2>/dev/null | grep -q '^\s*[0-9]\+:' && acl_present=1
-    fi
-    # Quarantine decode
-    local qstr=""; qstr=$(xattr -p com.apple.quarantine "$path_arg" 2>/dev/null)
-    if [[ -n "$qstr" ]]; then _kv "Quarantine" "${YELLOW}yes${RESET} ${DIM}(${qstr%%;*})${RESET}"; fi
-    # WhereFroms
-    local froms=""; froms=$(mdls -name kMDItemWhereFroms -raw "$path_arg" 2>/dev/null)
-    if [[ -n "$froms" && "$froms" != "(null)" ]]; then _kv "WhereFroms" "${froms}"; fi
-    if (( opt_verbose )); then
-      if (( ${#xas} > 0 )); then
-        printf "  %s%-*s %s\n" "$LABEL" 12 "XAttr:" ""
-        local xa; for xa in "${xas[@]}"; do printf "  %s  %s\n" "$LABEL" "$xa"; done
-      fi
-      (( acl_present )) && _kv "ACL" "present"
-    fi
-  fi
-  fi
 
   # 5b) Creator metadata (Spotlight) — show in long/verbose only
   if [[ $OSTYPE == darwin* && ( opt_long || opt_verbose ) ]]; then
@@ -950,6 +943,12 @@ finfo() {
     [[ -n "$ft_delim" ]] && print -r -- "delimiter${tab}${ft_delim}"
     [[ -n "$ft_image_dims" ]] && print -r -- "image_dims${tab}${ft_image_dims}"
     [[ -n "$about_str" ]] && print -r -- "about${tab}${about_str}"
+    # Security fields
+    print -r -- "gatekeeper${tab}${gk_assess}"
+    print -r -- "codesign_status${tab}${cs_status}"
+    [[ -n "$cs_team" ]] && print -r -- "codesign_team${tab}${cs_team}"
+    print -r -- "notarization${tab}${nota_stapled}"
+    print -r -- "verdict${tab}${verdict}"
       return 0
     fi
 
@@ -986,7 +985,7 @@ finfo() {
       local aa; aa=$(_json_escape "$a");
       (( first )) || ac_json+=" ,"; first=0; ac_json+="\"$aa\""
     done; ac_json+="]"
-    printf '{"name":"%s","path":{"abs":"%s","rel":"%s"},"is_dir":%s,"type":{"description":"%s","is_text":"%s","charset":"%s"},"size":{"bytes":%s,"human":"%s"},"lines":%s,"perms":{"symbolic":"%s","octal":"%s","explain":"%s"},"dates":{"created":"%s","modified":"%s"},"git":{"present":%s,"branch":"%s","status":"%s"},"links":{"hardlinks":%s},"symlink":{"is_symlink":%s,"target":"%s","target_exists":%s},"dir":{"num_dirs":%s,"num_files":%s,"size_human":"%s"},"filetype":{"pages":%s,"headings":%s,"columns":%s,"delimiter":"%s","image_dims":"%s"},"about":"%s","quality":%s,"actions":%s}\n' \
+    printf '{"name":"%s","path":{"abs":"%s","rel":"%s"},"is_dir":%s,"type":{"description":"%s","is_text":"%s","charset":"%s"},"size":{"bytes":%s,"human":"%s"},"lines":%s,"perms":{"symbolic":"%s","octal":"%s","explain":"%s"},"dates":{"created":"%s","modified":"%s"},"git":{"present":%s,"branch":"%s","status":"%s"},"security":{"gatekeeper":"%s","codesign":{"signed":%s,"status":"%s","team":"%s"},"notarization":"%s","quarantine":"%s","where_froms":"%s","verdict":"%s"},"links":{"hardlinks":%s},"symlink":{"is_symlink":%s,"target":"%s","target_exists":%s},"dir":{"num_dirs":%s,"num_files":%s,"size_human":"%s"},"filetype":{"pages":%s,"headings":%s,"columns":%s,"delimiter":"%s","image_dims":"%s"},"about":"%s","quality":%s,"actions":%s}\n' \
       "$j_name" "$j_abs" "$j_rel" \
       $([[ -d "$target" ]] && echo true || echo false) \
       "$j_type" "$is_text" "$j_charset" \
@@ -995,6 +994,7 @@ finfo() {
       "$j_perms" "${perms_oct:-}" "$j_permexp" \
       "$j_created" "$j_modified" \
       $([[ -n "$branch" ]] && echo true || echo false) "$j_branch" "$j_gitflag" \
+      "$gk_assess" $(( cs_signed ? 1 : 0 )) "$cs_status" "$cs_team" "$nota_stapled" "$([[ -n "$qstr" ]] && echo yes || echo no)" "$(_json_escape "$froms")" "$verdict" \
       $([[ -n "$link_count" && "$link_count" == <-> ]] && echo "$link_count" || echo null) \
       $(( is_symlink ? 1 : 0 )) "$j_link" $(( link_exists ? 1 : 0 )) \
       $([[ -d "$target" ]] && echo ${#subdirs} || echo 0) $([[ -d "$target" ]] && echo ${#files} || echo 0) "$([[ -d "$target" ]] && echo "$dsz" || echo "")" \
