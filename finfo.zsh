@@ -741,6 +741,19 @@ finfo() {
       dsz_bytes=$(du -sk "$path_arg" 2>/dev/null | awk '{print $1*1024}')
       [[ -n "$dsz_bytes" ]] && dsz=$(_hr_size "$dsz_bytes")
       [[ -n "$dsz" ]] && _kv "Disk" "${dsz}"
+      # Top subdir by immediate entries (best-effort)
+      if (( ${#subdirs[@]} > 0 )); then
+        local _top_name="" _top_count=0
+        local sd
+        for sd in "${subdirs[@]}"; do
+          local -a inside=( "$sd"/*(N) )
+          local cnt=${#inside}
+          if (( cnt > _top_count )); then _top_count=$cnt; _top_name=${sd:t}; fi
+        done
+        if (( _top_count > 0 )); then
+          _kv "Top dir" "${_top_name} ${DIM}(${_top_count} entries)${RESET}"
+        fi
+      fi
     fi
     # Archive quick stats
     if [[ -f "$path_arg" ]]; then
@@ -750,6 +763,40 @@ finfo() {
     # Hard links
     if [[ -f "$path_arg" && "$link_count" == <-> && $link_count -gt 1 ]]; then
       _kv "Links" "hardlinks: ${link_count}"
+    fi
+    # Filetype quick stats
+    if [[ -f "$path_arg" ]]; then
+      case "${name:l}" in
+        *.pdf)
+          if [[ $OSTYPE == darwin* ]]; then
+            local pages; pages=$(mdls -name kMDItemNumberOfPages -raw "$path_arg" 2>/dev/null)
+            [[ "$pages" != "(null)" && "$pages" == <-> ]] && _kv "Pages" "$pages"
+          fi
+          ;;
+        *.md|*.markdown)
+          if command -v grep >/dev/null 2>&1; then
+            local hcnt; hcnt=$(grep -E '^[#]{1,6} ' -c -- "$path_arg" 2>/dev/null || echo 0)
+            [[ "$hcnt" == <-> ]] && _kv "Headings" "$hcnt"
+          fi
+          ;;
+        *.csv|*.tsv|*.txt)
+          # Delimiter guess (tab, comma, semicolon, pipe)
+          local first_line; first_line=$(sed -n '/./{p;q;}' "$path_arg" 2>/dev/null)
+          if [[ -n "$first_line" ]]; then
+            local d=","; local dl=","; local ccomma csemi ctab cpipe
+            ccomma=$(print -r -- "$first_line" | awk -F',' '{print NF-1}')
+            csemi=$(print -r -- "$first_line" | awk -F';' '{print NF-1}')
+            ctab=$(print -r -- "$first_line" | awk -F'\t' '{print NF-1}')
+            cpipe=$(print -r -- "$first_line" | awk -F'\|' '{print NF-1}')
+            local max=$ccomma; dl=","; if (( csemi>max )); then max=$csemi; dl=";"; fi; if (( ctab>max )); then max=$ctab; dl=$'\t'; fi; if (( cpipe>max )); then max=$cpipe; dl='|'; fi
+            if (( max>0 )); then
+              local cols=$(( max + 1 ))
+              local dname="comma"; [[ "$dl" == $'\t' ]] && dname="tab"; [[ "$dl" == ";" ]] && dname="semicolon"; [[ "$dl" == '|' ]] && dname="pipe"
+              _kv "Columns" "${cols} ${DIM}(delimiter: ${dname})${RESET}"
+            fi
+          fi
+          ;;
+      esac
     fi
     # Monitor growth/shrink rate (files only; optional)
     if (( opt_monitor )) && [[ -f "$path_arg" ]]; then
