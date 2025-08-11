@@ -262,11 +262,31 @@ _cmd_color() {
 
 # Human-readable size
 _hr_size() {
+  # Back-compat simple formatter (IEC thresholds, compact units)
   local bytes="$1"; [[ -z "$bytes" || "$bytes" != <-> ]] && bytes=0
   if (( bytes >= 1073741824 )); then print -r -- "$((bytes/1073741824))G"; return
   elif (( bytes >= 1048576 )); then print -r -- "$((bytes/1048576))M"; return
   elif (( bytes >= 1024 )); then print -r -- "$((bytes/1024))K"; return
   else print -r -- "${bytes}B"; fi
+}
+
+# Human-readable size with unit scheme
+_hr_size_fmt() {
+  local bytes="$1"; local scheme="${2:-${FINFO_UNIT:-iec}}"; [[ -z "$bytes" || "$bytes" != <-> ]] && bytes=0
+  case "$scheme" in
+    bytes|byte)
+      print -r -- "${bytes} B"; return ;;
+    si)
+      if (( bytes >= 1000000000 )); then printf '%.0f GB\n' $((bytes/1000000000));
+      elif (( bytes >= 1000000 )); then printf '%.0f MB\n' $((bytes/1000000));
+      elif (( bytes >= 1000 )); then printf '%.0f kB\n' $((bytes/1000));
+      else print -r -- "${bytes} B"; fi; return ;;
+    iec|*)
+      if (( bytes >= 1073741824 )); then printf '%.0f GiB\n' $((bytes/1073741824));
+      elif (( bytes >= 1048576 )); then printf '%.0f MiB\n' $((bytes/1048576));
+      elif (( bytes >= 1024 )); then printf '%.0f KiB\n' $((bytes/1024));
+      else print -r -- "${bytes} B"; fi; return ;;
+  esac
 }
 
 # Infer simple description by extension
@@ -445,6 +465,7 @@ finfo() {
       --porcelain)   argv_new+=(-P);;
       --width)       shift; argv_new+=(-W "$1");;
       --hash)        shift; argv_new+=(-Z "$1");;
+      --unit)        shift; argv_new+=(-U "$1");;
       --no-git)      argv_new+=(-R);;
       --git)         argv_new+=(-r);;
       --theme)       shift; export FINFOTHEME="$1";;
@@ -458,7 +479,8 @@ finfo() {
   set -- "${argv_new[@]}"
 
   typeset -a _o_n _o_J _o_Y _o_N _o_q _o_c _o_v _o_G _o_b _o_H _o_k _o_s _o_B _o_L _o_P _o_W _o_Z _o_R _o_r
-  zparseopts -D -E n=_o_n J=_o_J Y=_o_Y N=_o_N q=_o_q c=_o_c v=_o_v G=_o_G b=_o_b H=_o_H k=_o_k s=_o_s B=_o_B L=_o_L P=_o_P W:=_o_W Z:=_o_Z R=_o_R r=_o_r
+  typeset -a _o_U
+  zparseopts -D -E n=_o_n J=_o_J Y=_o_Y N=_o_N q=_o_q c=_o_c v=_o_v G=_o_G b=_o_b H=_o_H k=_o_k s=_o_s B=_o_B L=_o_L P=_o_P W:=_o_W Z:=_o_Z U:=_o_U R=_o_R r=_o_r
   local opt_no_color=$(( ${#_o_n} > 0 ))
   local opt_json=$(( ${#_o_J} > 0 ))
   local opt_yaml=$(( ${#_o_Y} > 0 ))
@@ -477,6 +499,7 @@ finfo() {
   local opt_porcelain=$(( ${#_o_P} > 0 ))
   local opt_width=""; (( ${#_o_W} > 0 )) && opt_width="${_o_W[2]}"
   local hash_algo=""; (( ${#_o_Z} > 0 )) && hash_algo="${_o_Z[2]}"
+  local unit_scheme="${FINFO_UNIT:-iec}"; (( ${#_o_U} > 0 )) && unit_scheme="${_o_U[2]}"; export FINFO_UNIT="$unit_scheme"
   local opt_no_git=$(( ${#_o_R} > 0 ))
   local opt_force_git=$(( ${#_o_r} > 0 ))
 
@@ -650,7 +673,8 @@ finfo() {
     if [[ -d "$target" ]]; then
       _kv "Size" "— ${DIM}(${bytes_disp})${RESET}"
     else
-      _kv "Size" "${size_human} ${DIM}(${bytes_disp})${RESET}"
+      local size_unit_disp; size_unit_disp=$(_hr_size_fmt ${size_bytes:-0} "$unit_scheme")
+      _kv "Size" "${size_unit_disp} ${DIM}(${bytes_disp})${RESET}"
     fi
     # Lines (if text)
     if [[ -f "$target" && "$is_text" == text ]]; then
