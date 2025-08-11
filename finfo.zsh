@@ -367,6 +367,10 @@ _action_hints() {
       hints+=("less -S '$p'")
     fi
   fi
+  # Editors and viewers
+  if command -v code >/dev/null 2>&1; then hints+=("code '$p'"); fi
+  if command -v subl >/dev/null 2>&1; then hints+=("subl '$p'"); fi
+  if command -v cursor >/dev/null 2>&1; then hints+=("cursor '$p'"); fi
   case "$name_lc" in
     *.md|*.markdown)
       command -v glow >/dev/null 2>&1 && hints+=("glow '$p'")
@@ -771,6 +775,12 @@ finfo() {
           if [[ $OSTYPE == darwin* ]]; then
             local pages; pages=$(mdls -name kMDItemNumberOfPages -raw "$path_arg" 2>/dev/null)
             [[ "$pages" != "(null)" && "$pages" == <-> ]] && _kv "Pages" "$pages"
+          fi
+          ;;
+        *.png|*.jpg|*.jpeg|*.gif|*.tif|*.tiff|*.bmp|*.heic)
+          if [[ $OSTYPE == darwin* ]] && command -v sips >/dev/null 2>&1; then
+            local dim; dim=$(sips -g pixelWidth -g pixelHeight "$path_arg" 2>/dev/null | awk '/pixel(Width|Height):/{print $2}' | paste -sd 'x' -)
+            [[ -n "$dim" ]] && _kv "Image" "${dim}"
           fi
           ;;
         *.md|*.markdown)
