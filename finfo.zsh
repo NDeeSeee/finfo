@@ -377,6 +377,21 @@ _action_hints() {
     *.yaml|*.yml)
       command -v yq >/dev/null 2>&1 && hints+=("yq e . '$p'")
       ;;
+    *.py)
+      command -v python3 >/dev/null 2>&1 && hints+=("python3 '$p'")
+      ;;
+    *.sh|*.bash)
+      command -v bash >/dev/null 2>&1 && hints+=("bash '$p'")
+      ;;
+    *.zsh)
+      hints+=("zsh '$p'")
+      ;;
+    *.r|*.R)
+      command -v Rscript >/dev/null 2>&1 && hints+=("Rscript '$p'")
+      ;;
+    *.ipynb)
+      command -v jupyter >/dev/null 2>&1 && hints+=("jupyter lab '$p'")
+      ;;
   esac
   [[ "$OSTYPE" == darwin* ]] && hints+=("open '$p'")
   if (( ${#hints} )); then
@@ -407,6 +422,26 @@ _archive_hint() {
       print -r -- "WARN: name suggests archive but content is not an archive"
     fi
   fi
+}
+
+# Archive quick stats (best-effort, fast)
+_archive_stats() {
+  local p="$1"; local name_lc="${2:l}"
+  local out=""
+  case "$name_lc" in
+    *.zip)
+      if command -v zipinfo >/dev/null 2>&1; then
+        out=$(zipinfo -t -- "$p" 2>/dev/null | sed -nE 's/^.* ([0-9]+) files.*$/files: \1/p')
+      fi
+      ;;
+    *.tar|*.tar.gz|*.tgz|*.tar.bz2|*.tbz|*.tbz2|*.tar.xz|*.txz)
+      if command -v tar >/dev/null 2>&1; then
+        local cnt; cnt=$(tar -tf -- "$p" 2>/dev/null | wc -l | tr -d ' ')
+        [[ -n "$cnt" ]] && out="files: $cnt"
+      fi
+      ;;
+  esac
+  [[ -n "$out" ]] && print -r -- "$out"
 }
 
 # Docker hints
@@ -700,6 +735,11 @@ finfo() {
       dsz_bytes=$(du -sk "$path_arg" 2>/dev/null | awk '{print $1*1024}')
       [[ -n "$dsz_bytes" ]] && dsz=$(_hr_size "$dsz_bytes")
       [[ -n "$dsz" ]] && _kv "Disk" "${dsz}"
+    fi
+    # Archive quick stats
+    if [[ -f "$path_arg" ]]; then
+      local astats; astats=$(_archive_stats "$path_arg" "$name")
+      [[ -n "$astats" ]] && _kv "Archive" "$astats"
     fi
     # Git (optional)
     local in_repo=0; if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then in_repo=1; fi
