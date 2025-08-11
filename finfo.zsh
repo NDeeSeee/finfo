@@ -591,6 +591,17 @@ finfo() {
     if [[ -f "$path_arg" && "$link_count" == <-> && $link_count -gt 1 ]]; then
       _kv "Links" "hardlinks: ${link_count}"
     fi
+    # About line (short description)
+    local about_str=""
+    if [[ -n "$ft_image_dims" ]]; then about_str="Image ${ft_image_dims}";
+    elif [[ -n "$ft_pages" ]]; then about_str="PDF ${ft_pages} pages";
+    elif [[ -n "$ft_headings" ]]; then about_str="Markdown ${ft_headings} headings";
+    elif [[ -n "$ft_columns" ]]; then about_str="Delimited ${ft_columns} columns${ft_delim:+ (${ft_delim})}";
+    else
+      local extd; extd=$(_describe_ext "$name")
+      if [[ -n "$extd" ]]; then about_str="$extd"; else about_str="${file_desc%%,*}"; fi
+    fi
+    [[ -n "$about_str" ]] && _kv "About" "$about_str"
     # Filetype quick stats
     if [[ -f "$path_arg" ]]; then
       case "${name:l}" in
@@ -906,6 +917,7 @@ finfo() {
     [[ -n "$ft_columns" ]] && print -r -- "columns${tab}${ft_columns}"
     [[ -n "$ft_delim" ]] && print -r -- "delimiter${tab}${ft_delim}"
     [[ -n "$ft_image_dims" ]] && print -r -- "image_dims${tab}${ft_image_dims}"
+    [[ -n "$about_str" ]] && print -r -- "about${tab}${about_str}"
       return 0
     fi
 
@@ -929,6 +941,7 @@ finfo() {
     local j_pages=$(_json_escape "$ft_pages")
     local j_headings=$(_json_escape "$ft_headings")
     local j_columns=$(_json_escape "$ft_columns")
+    local j_about; j_about=$(_json_escape "$about_str")
     # Build arrays
     local -a qual_lines act_lines
     local qa_json="["; local first=1; local q
@@ -941,7 +954,7 @@ finfo() {
       local aa; aa=$(_json_escape "$a");
       (( first )) || ac_json+=" ,"; first=0; ac_json+="\"$aa\""
     done; ac_json+="]"
-    printf '{"name":"%s","path":{"abs":"%s","rel":"%s"},"is_dir":%s,"type":{"description":"%s","is_text":"%s","charset":"%s"},"size":{"bytes":%s,"human":"%s"},"lines":%s,"perms":{"symbolic":"%s","octal":"%s","explain":"%s"},"dates":{"created":"%s","modified":"%s"},"git":{"present":%s,"branch":"%s","status":"%s"},"links":{"hardlinks":%s},"symlink":{"is_symlink":%s,"target":"%s","target_exists":%s},"dir":{"num_dirs":%s,"num_files":%s,"size_human":"%s"},"filetype":{"pages":%s,"headings":%s,"columns":%s,"delimiter":"%s","image_dims":"%s"},"quality":%s,"actions":%s}\n' \
+    printf '{"name":"%s","path":{"abs":"%s","rel":"%s"},"is_dir":%s,"type":{"description":"%s","is_text":"%s","charset":"%s"},"size":{"bytes":%s,"human":"%s"},"lines":%s,"perms":{"symbolic":"%s","octal":"%s","explain":"%s"},"dates":{"created":"%s","modified":"%s"},"git":{"present":%s,"branch":"%s","status":"%s"},"links":{"hardlinks":%s},"symlink":{"is_symlink":%s,"target":"%s","target_exists":%s},"dir":{"num_dirs":%s,"num_files":%s,"size_human":"%s"},"filetype":{"pages":%s,"headings":%s,"columns":%s,"delimiter":"%s","image_dims":"%s"},"about":"%s","quality":%s,"actions":%s}\n' \
       "$j_name" "$j_abs" "$j_rel" \
       $([[ -d "$target" ]] && echo true || echo false) \
       "$j_type" "$is_text" "$j_charset" \
@@ -954,6 +967,7 @@ finfo() {
       $(( is_symlink ? 1 : 0 )) "$j_link" $(( link_exists ? 1 : 0 )) \
       $([[ -d "$target" ]] && echo ${#subdirs} || echo 0) $([[ -d "$target" ]] && echo ${#files} || echo 0) "$([[ -d "$target" ]] && echo "$dsz" || echo "")" \
       $([[ -n "$ft_pages" ]] && echo "$j_pages" || echo null) $([[ -n "$ft_headings" ]] && echo "$j_headings" || echo null) $([[ -n "$ft_columns" ]] && echo "$j_columns" || echo null) "$j_delim" "$j_img" \
+      "$j_about" \
       "$qa_json" "$ac_json"
       return 0
     fi
