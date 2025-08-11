@@ -626,6 +626,11 @@ finfo() {
     if [[ -f "$path_arg" && "$link_count" == <-> && $link_count -gt 1 ]]; then
       _kv "Links" "hardlinks: ${link_count}"
     fi
+    # Open handles (best-effort; verbose only)
+    if (( opt_verbose )) && command -v lsof >/dev/null 2>&1; then
+      local _lsof; _lsof=$(lsof -n -- "$path_arg" 2>/dev/null | awk 'NR>1{print $1"("$2")"}' | head -3 | paste -sd ', ' -)
+      [[ -n "$_lsof" ]] && _kv "Open" "${_lsof}"
+    fi
     # About line (short description)
     local about_str=""
     if [[ -n "$ft_image_dims" ]]; then about_str="Image ${ft_image_dims}";
