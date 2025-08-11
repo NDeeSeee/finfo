@@ -482,6 +482,8 @@ finfo() {
   # Silence xtrace within finfo for clean output, restore afterwards
   local _xtrace_was_on=0
   if [[ -o xtrace ]]; then _xtrace_was_on=1; set +x; fi
+  # Ensure tracing is disabled locally regardless of caller state
+  setopt localoptions noxtrace
   # Cleanup helper: restore COLUMNS and xtrace before any return
   local old_COLUMNS=${COLUMNS:-}
   _cleanup() {
@@ -1005,16 +1007,20 @@ finfo() {
       _section "ACTIONS" actions
       local -A seen_map=()
       local line
+      # Ensure xtrace is off in this block to avoid leaking debug lines
+      local __was_xtrace=0
+      if [[ -o xtrace ]]; then __was_xtrace=1; set +x; fi
       for line in "${act_lines[@]}"; do
         [[ -z "$line" ]] && continue
         if [[ -z ${seen_map[$line]:-} ]]; then
           seen_map[$line]=1
           local basecmd=${line%% *}
-          local ic; ic=$(_cmd_icon "$basecmd")
-          local col; col=$(_cmd_color "$basecmd")
-          printf "  %s%s %s%s\n" "$col" "$ic" "$line" "$RESET"
+          local _icon_out; _icon_out=$(_cmd_icon "$basecmd")
+          local _color_out; _color_out=$(_cmd_color "$basecmd")
+          printf "  %s%s %s%s\n" "$_color_out" "$_icon_out" "$line" "$RESET"
         fi
       done
+      if (( __was_xtrace )); then set -x; fi
     fi
     fi
   # 7) Tips (1 line max, contextual)
