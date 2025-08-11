@@ -426,8 +426,11 @@ finfo() {
   # Cleanup helper: restore COLUMNS and xtrace before any return
   local old_COLUMNS=${COLUMNS:-}
   _cleanup() {
-    if [[ -n "$opt_width" ]]; then COLUMNS=$old_COLUMNS; fi
-    if (( _xtrace_was_on )); then set -x; fi
+    # In multi-target mode, cleanup is performed once at the end
+    if (( multi_mode == 0 )); then
+      if [[ -n "$opt_width" ]]; then COLUMNS=$old_COLUMNS; fi
+      if (( _xtrace_was_on )); then set -x; fi
+    fi
   }
   # Options: -n (no color), -J (json), -q (quiet lists), -c (compact), -v (verbose),
   #          -G (nerd bullets), -b (ascii bullets), -H (header bar off)
@@ -477,6 +480,9 @@ finfo() {
   local opt_no_git=$(( ${#_o_R} > 0 ))
   local opt_force_git=$(( ${#_o_r} > 0 ))
 
+  # Long implies verbose
+  if (( opt_long )); then opt_verbose=1; fi
+
   # Note: zparseopts already removes parsed options from $@, leaving only positional args.
   # Do not shift here, or we will drop the first non-option argument (the target path).
 
@@ -494,19 +500,31 @@ finfo() {
   if [[ -n "$NO_COLOR" ]] || (( opt_porcelain )); then BOLD="" DIM="" RESET="" RED="" GREEN="" YELLOW="" BLUE="" MAGENTA="" CYAN="" WHITE=""; fi
   # Width override
   if [[ -n "$opt_width" ]]; then COLUMNS=$opt_width; fi
-  local target="${1:-.}"
-  if [[ ! -e "$target" ]]; then
-    print -r -- "${RED}✗${RESET} not found: $target"
-    _cleanup; return 1
-  fi
+  # Multi-target detection
+  local -a targets; targets=( "$@" )
+  (( ${#targets[@]} == 0 )) && targets=( . )
+  local multi_mode=0
+  if (( ${#targets[@]} > 1 )); then multi_mode=1; fi
 
-  # Resolve paths (zsh modifiers)
-  local abs_path="${target:A}"
-  local rel_path="${abs_path:#$PWD/}"
-  [[ "$rel_path" == "$abs_path" ]] && rel_path="$target"
+  # Aggregation state for group summary
+  typeset -A _ext_count=()
+  local _total_files=0 _total_dirs=0 _largest_name="" _largest_size=0 _oldest_name="" _oldest_epoch=0 _quar_count=0
+
+  # Helper: process one target
+  _finfo_print_one() {
+    local target="$1"
+    if [[ ! -e "$target" ]]; then
+      print -r -- "${RED}✗${RESET} not found: $target"
+      return 1
+    fi
+
+    # Resolve paths (zsh modifiers)
+    local abs_path="${target:A}"
+    local rel_path="${abs_path:#$PWD/}"
+    [[ "$rel_path" == "$abs_path" ]] && rel_path="$target"
 
   # Name and icon
-  local name=${target:t}
+    local name=${target:t}
   local glyph=""
   if command -v lsd &>/dev/null; then
     glyph=$(lsd --icon always --color never -1 -- "$target" 2>/dev/null | head -n1 | sed -E 's/^([^[:space:]]+).*/\1/')
@@ -519,7 +537,7 @@ finfo() {
 
   # stat block
   local perms_sym perms_oct size_bytes created_at modified_at created_epoch modified_epoch
-  local path_arg="$target"; [[ "${path_arg}" == -* ]] && path_arg="./${path_arg}"
+    local path_arg="$target"; [[ "${path_arg}" == -* ]] && path_arg="./${path_arg}"
   if [[ $OSTYPE == darwin* ]]; then
     local stat_bin="/usr/bin/stat"; [[ -x $stat_bin ]] || stat_bin="stat"
     perms_sym=$($stat_bin -f '%Sp' "$path_arg" 2>/dev/null)
@@ -539,12 +557,12 @@ finfo() {
     modified_epoch=$(stat -c '%Y' -- "$path_arg" 2>/dev/null)
   fi
 
-  local size_human=$(_hr_size ${size_bytes:-0})
+    local size_human=$(_hr_size ${size_bytes:-0})
 
   # File type and text/binary
-  local file_desc mime_line is_text="?"
-  file_desc=$(file -b "$path_arg" 2>/dev/null)
-  mime_line=$(file -b -I "$path_arg" 2>/dev/null)
+    local file_desc mime_line is_text="?"
+    file_desc=$(file -b "$path_arg" 2>/dev/null)
+    mime_line=$(file -b -I "$path_arg" 2>/dev/null)
   local charset="";
   if [[ -d "$target" ]]; then
     is_text="n/a"
@@ -555,13 +573,13 @@ finfo() {
     charset=$(print -r -- "$mime_line" | sed -nE 's/.*charset=([^;]+).*/\1/p')
   fi
   # macOS UTType
-  local uttype=""
+    local uttype=""
   if [[ $OSTYPE == darwin* ]]; then
     uttype=$(mdls -name kMDItemContentType -raw "$path_arg" 2>/dev/null)
     [[ "$uttype" == "(null)" ]] && uttype=""
   fi
   # macOS flags
-  local posix_flags=""
+    local posix_flags=""
   if [[ $OSTYPE == darwin* ]]; then
     local stat_bin="/usr/bin/stat"; [[ -x $stat_bin ]] || stat_bin="stat"
     posix_flags=$($stat_bin -f '%Sf' "$path_arg" 2>/dev/null)
@@ -572,16 +590,16 @@ finfo() {
   # (LABEL/VALUE/PATHC/NUM already themed above)
 
   # Bullet glyph selection
-  local BULLET="•"
+    local BULLET="•"
   if (( opt_ascii_bullets )); then BULLET="•"; fi
   if (( opt_nerd_bullets )) || [[ -n ${i_oct_file_directory:-} ]]; then
     BULLET=""
   fi
 
   # Decide whether to emit pretty sections (skip when json/porcelain/compact)
-  local emit_pretty=$(( (opt_json || opt_porcelain || opt_compact) ? 0 : 1 ))
+    local emit_pretty=$(( (opt_json || opt_porcelain || opt_compact) ? 0 : 1 ))
 
-  if (( emit_pretty )); then
+    if (( emit_pretty )); then
     # Header bar: one-line headline (name · short type · size · lines)
     if (( ! opt_no_header )); then
       local HB=""; local HFRESET="$RESET"
@@ -599,10 +617,10 @@ finfo() {
       _logo
       printf "%s%s%s\n" "$BOLD$BLUE" "$name" "$RESET"
     fi
-  fi
+    fi
 
   # Symlink details
-  local is_symlink=0 link_target link_exists=0
+    local is_symlink=0 link_target link_exists=0
   if [[ -L "$target" ]]; then
     is_symlink=1
     link_target=$(readlink -- "$target" 2>/dev/null)
@@ -613,19 +631,19 @@ finfo() {
   fi
 
   # 1) Header
-  if (( emit_pretty )); then
+    if (( emit_pretty )); then
     _section "HEADER" type
     local header_type="$file_desc"; [[ -n "$charset" && "$is_text" == text ]] && header_type+=" ${DIM}(${charset})${RESET}"
     _kvx type "File" "${VALUE}${name}${RESET} ${DIM}–${RESET} ${header_type}"
-  fi
+    fi
 
   # Owners
   local owner_group
   if [[ $OSTYPE == darwin* ]]; then owner_group=$($stat_bin -f '%Su:%Sg' "$path_arg" 2>/dev/null); else owner_group=$(stat -c '%U:%G' "$path_arg" 2>/dev/null); fi
 
   # 2) Essentials
-  local want_essentials=1
-  if (( emit_pretty )); then
+    local want_essentials=1
+    if (( emit_pretty )); then
     _section "ESSENTIALS" type
     # Size and bytes
     local bytes_disp="${size_bytes:-0}B"; if [[ -n ${size_bytes:-} ]]; then bytes_disp="${size_bytes} B"; fi
@@ -673,9 +691,9 @@ finfo() {
       fi
       _kv "Git" "${branch} ${DIM}(${git_flag})${RESET}"
     fi
-  fi
+    fi
   # Checksum
-  if [[ -n "$hash_algo" && -f "$path_arg" ]]; then
+    if [[ -n "$hash_algo" && -f "$path_arg" ]]; then
     local checksum="" algo_disp="${hash_algo}"
     case "$hash_algo" in
       sha256)
@@ -687,11 +705,11 @@ finfo() {
         fi;;
     esac
     [[ -n "$checksum" ]] && _kv "Checksum" "${algo_disp} ${DIM}${checksum}${RESET}" || _kv "Checksum" "${DIM}${algo_disp} unavailable${RESET}"
-  fi
+    fi
 
   # 3) Timeline
-  local want_timeline=$(( opt_brief ? 0 : 1 ))
-  if (( emit_pretty && want_timeline )); then
+    local want_timeline=$(( opt_brief ? 0 : 1 ))
+    if (( emit_pretty && want_timeline )); then
   _section "TIMELINE" dates
   # Access time (best-effort)
   local accessed_at accessed_epoch
@@ -706,11 +724,11 @@ finfo() {
   _kv "Created" "${created_at:-–} ${DIM}(${created_rel})${RESET}"
   _kv "Modified" "${modified_at:-–} ${DIM}(${modified_rel})${RESET}"
   [[ -n "$accessed_at" ]] && _kv "Accessed" "${accessed_at} ${DIM}(${accessed_rel})${RESET}"
-  fi
+    fi
 
   # 4) Paths
-  local want_paths=$(( opt_brief ? 0 : 1 ))
-  if (( emit_pretty && want_paths )); then
+    local want_paths=$(( opt_brief ? 0 : 1 ))
+    if (( emit_pretty && want_paths )); then
   _section "PATHS" paths
   if (( opt_code_tags )); then
     _kv "Rel" "${PATHC}</>${RESET} ${PATHC}${rel_path}${RESET}"
@@ -720,15 +738,15 @@ finfo() {
     _kv "Rel" "${PATHC}${rel_path}${RESET}"
     local abs_disp=$(_ellipsize_middle "$abs_path" ${COLUMNS:-120})
     _kv "Abs" "${PATHC}${abs_disp}${RESET}"
-  fi
+    fi
   if (( is_symlink )); then
     if (( link_exists )); then _kv "Symlink" "${PATHC}${link_target}${RESET}"; else _kv "Symlink" "${YELLOW}${link_target} (missing)${RESET}"; fi
   fi
   fi
 
   # 5) Security & provenance
-  local want_secprov=$(( opt_brief ? 0 : 1 ))
-  if (( emit_pretty && want_secprov )); then
+    local want_secprov=$(( opt_brief ? 0 : 1 ))
+    if (( emit_pretty && want_secprov )); then
   _section "SECURITY & PROVENANCE" perms
   # Gatekeeper / Codesign / Notarization (macOS only; best-effort)
   local gk_assess="unknown" cs_signed=0 cs_status="unknown" cs_team="" cs_auth="" nota_stapled="unknown"
@@ -756,14 +774,14 @@ finfo() {
         if [[ $? -eq 0 ]]; then nota_stapled="ok"; else nota_stapled="missing"; fi
       fi
     fi
-  fi
+    fi
   # Verdict (simple heuristic)
   local quarantine_present="no"
-  if [[ $OSTYPE == darwin* ]]; then
+    if [[ $OSTYPE == darwin* ]]; then
     local _qtmp
     _qtmp=$(xattr -p com.apple.quarantine "$path_arg" 2>/dev/null)
     [[ -n "$_qtmp" ]] && quarantine_present="yes"
-  fi
+    fi
   local verdict="unknown"
   if [[ "$gk_assess" == pass && "$cs_status" == valid && "$quarantine_present" == no ]]; then
     verdict="safe"
@@ -820,7 +838,7 @@ finfo() {
     fi
   fi
   # 6) Suggested actions (view/parse/format/lint/open), archives & docker
-  if (( emit_pretty && ! opt_quiet )); then
+    if (( emit_pretty && ! opt_quiet )); then
     local -a qual_lines action_lines docker_lines archive_lines act_lines
     qual_lines=( "${(@f)$(_suggest_quality "$name" "$abs_path")}" )
     action_lines=( "${(@f)$(_action_hints "$name" "$abs_path")}" )
@@ -847,9 +865,9 @@ finfo() {
         fi
       done
     fi
-  fi
+    fi
   # 7) Tips (1 line max, contextual)
-  if (( emit_pretty && ! opt_quiet )); then
+    if (( emit_pretty && ! opt_quiet )); then
     if [[ -d "$target" ]]; then
       printf "  %s%s %-*s %s\n" "$LABEL" "$(_glyph info)" 12 "Tip:" "${CYAN}use 'll' for detailed listing${RESET}"
     else
@@ -860,7 +878,7 @@ finfo() {
   fi
 
   # Compact mode output (overrides above): show concise summary
-  if (( opt_compact )); then
+    if (( opt_compact )); then
     # Clear screen part: reprint minimal lines only
     printf "%s%s %s%s\n" "$BOLD$BLUE" "$glyph" "$name" "$RESET"
     printf "  %s•%s %s%s%s  %s%s%s  %s%s%s  %s%s%s\n" \
@@ -868,10 +886,10 @@ finfo() {
       "$NUM" "$size_human" "$RESET" \
       "$VALUE" "$perms_sym" "$RESET" \
       "$VALUE" "${modified_at:-–}" "$RESET"
-  fi
+    fi
 
   # Porcelain output (stable columns, no colors/icons)
-  if (( opt_porcelain )); then
+    if (( opt_porcelain )); then
     local tab=$'\t'
     print -r -- "name${tab}${name}"
     print -r -- "type${tab}${file_desc}"
@@ -894,11 +912,11 @@ finfo() {
     [[ -n "$qstr" ]] && print -r -- "quarantine${tab}yes"
     [[ -n "$froms" ]] && print -r -- "where_froms${tab}${froms}"
     [[ -n "$hash_algo" && -n "$checksum" ]] && print -r -- "${hash_algo}${tab}${checksum}"
-    _cleanup; return 0
-  fi
+      return 0
+    fi
 
   # JSON mode: print machine-readable output and exit
-  if (( opt_json )); then
+    if (( opt_json )); then
     _json_escape() { local s="$1"; s=${s//\\/\\\\}; s=${s//\"/\\\"}; s=${s//$'\n'/\\n}; print -rn -- "$s"; }
     local j_name; j_name=$(_json_escape "$name")
     local j_abs; j_abs=$(_json_escape "$abs_path")
@@ -936,8 +954,62 @@ finfo() {
       $(( is_symlink ? 1 : 0 )) "$j_link" $(( link_exists ? 1 : 0 )) \
       $([[ -d "$target" ]] && echo ${#subdirs} || echo 0) $([[ -d "$target" ]] && echo ${#files} || echo 0) "$([[ -d "$target" ]] && echo "$dsz" || echo "")" \
       "$qa_json" "$ac_json"
-    _cleanup; return 0
+      return 0
+    fi
+
+    # Aggregation for summary (pretty mode only)
+    local _ext=""
+    if [[ -d "$target" ]]; then
+      (( _total_dirs++ ))
+      _ext="dir"
+    else
+      (( _total_files++ ))
+      _ext="${name##*.}"; [[ "$name" == *.* ]] || _ext="(noext)"; _ext="${_ext:l}"
+      # Largest
+      if [[ ${size_bytes:-0} == <-> ]] && (( size_bytes > _largest_size )); then _largest_size=$size_bytes; _largest_name="$name"; fi
+      # Oldest by modified
+      if [[ ${modified_epoch:-0} == <-> ]] && { (( _oldest_epoch == 0 )) || (( modified_epoch < _oldest_epoch )); }; then _oldest_epoch=$modified_epoch; _oldest_name="$name"; fi
+      # Quarantine
+      if [[ $OSTYPE == darwin* ]]; then
+        local _qtmp2; _qtmp2=$(xattr -p com.apple.quarantine "$path_arg" 2>/dev/null)
+        [[ -n "$_qtmp2" ]] && (( _quar_count++ ))
+      fi
+    fi
+    (( _ext_count[$_ext]++ ))
+    return 0
+  }
+
+  # Loop over targets
+  local _t
+  for _t in "${targets[@]}"; do
+    _finfo_print_one "$_t" || true
+  done
+
+  # Group summary (pretty only, multi-mode)
+  if (( multi_mode )); then
+    if (( ! opt_json && ! opt_porcelain && ! opt_compact )); then
+      _section "SUMMARY" type
+      _kv "Items" "$(( _total_files + _total_dirs )) total — ${_total_files} files, ${_total_dirs} dirs"
+      # Extensions
+      local k; local -a ext_lines=()
+      for k in ${(k)_ext_count}; do
+        ext_lines+=("${k}:${_ext_count[$k]}")
+      done
+      if (( ${#ext_lines[@]} )); then
+        printf "  %s%-*s %s\n" "$LABEL" 12 "By type:" "${(j:, :)ext_lines}"
+      fi
+      [[ -n "$_largest_name" ]] && _kv "Largest" "${_largest_name} ${DIM}($(_hr_size $_largest_size), ${_largest_size} B)${RESET}"
+      if (( _oldest_epoch > 0 )); then
+        local _oldest_rel; _oldest_rel=$(_fmt_ago $(( $(date +%s) - _oldest_epoch )))
+        _kv "Oldest" "${_oldest_name} ${DIM}(${_oldest_rel})${RESET}"
+      fi
+      if (( _quar_count > 0 )); then
+        _kv "Quarantine" "${YELLOW}${_quar_count}${RESET} flagged"
+      fi
+    fi
   fi
 
+  # Final cleanup once
+  multi_mode=0
   _cleanup; return 0
 }
