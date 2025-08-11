@@ -275,6 +275,38 @@ finfo() {
     _cleanup; return 0
   fi
 
+  # Subcommand: watch PATH → live sample of size/mtime/xattrs (Ctrl-C to stop)
+  if [[ "$1" == watch ]]; then
+    shift; local W="$1"; local interval="${2:-1}"
+    [[ -z "$W" ]] && { echo "Usage: finfo watch PATH [interval_s]"; _cleanup; return 2; }
+    [[ "$interval" != <-> || $interval -lt 1 ]] && interval=1
+    if [[ ! -e "$W" ]]; then echo "${RED}✗${RESET} not found: $W"; _cleanup; return 1; fi
+    _finfo_colors; _apply_theme "${FINFOTHEME:-default}"; local LABEL="$THEME_LABEL" VALUE="$THEME_VALUE"
+    echo "Watching $W every ${interval}s — Ctrl-C to stop"
+    local last_sz last_mtime last_q
+    while :; do
+      local sz mt q=""
+      if [[ $OSTYPE == darwin* ]]; then
+        local sb="/usr/bin/stat"; [[ -x $sb ]] || sb="stat"
+        sz=$($sb -f '%z' -- "$W" 2>/dev/null)
+        mt=$($sb -f '%Sm' -t '%b %d %Y %H:%M:%S' -- "$W" 2>/dev/null)
+      else
+        sz=$(stat -c '%s' -- "$W" 2>/dev/null)
+        mt=$(stat -c '%y' -- "$W" 2>/dev/null)
+      fi
+      if command -v xattr >/dev/null 2>&1; then q=$(xattr -p com.apple.quarantine "$W" 2>/dev/null | sed 's/.*/yes/'); fi
+      if [[ "$sz" != "$last_sz" || "$mt" != "$last_mtime" || "$q" != "$last_q" ]]; then
+        printf "  %s%-*s %s  %s%-*s %s  %s%-*s %s\n" \
+          "$LABEL" 12 "size:" "$VALUE$sz$RESET" \
+          "$LABEL" 12 "modified:" "$VALUE${mt:-–}$RESET" \
+          "$LABEL" 12 "quarantine:" "$VALUE${q:-no}$RESET"
+        last_sz="$sz"; last_mtime="$mt"; last_q="$q"
+      fi
+      sleep "$interval" || break
+    done
+    _cleanup; return 0
+  fi
+
   # Subcommand: chmod PATH → interactive chmod helper (arrow-based)
   if [[ "$1" == chmod ]]; then
     shift; local T="$1"; [[ -z "$T" ]] && { echo "Usage: finfo chmod PATH"; _cleanup; return 2; }
