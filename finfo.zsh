@@ -4,6 +4,7 @@
 source ./lib/_icons.zsh
 source ./lib/_colors.zsh
 source ./lib/_format.zsh
+source ./lib/_sections.zsh
 
 # Format seconds as human-readable age (largest 2 units) + " ago"
 _fmt_ago() {
@@ -30,34 +31,6 @@ _fmt_ago() {
 }
 
 source ./lib/_size.zsh
-
-# Section icon resolver (with ASCII fallbacks)
-_sec_icon() {
-  local key="$1"
-  if _has_nerd; then
-    case "$key" in
-      type)       print -rn -- "󰈙" ;;      # document
-      dir)        print -rn -- "󰉋" ;;      # folder
-      perms)      print -rn -- "󰌾" ;;      # lock/key
-      dates)      print -rn -- ""  ;;      # clock
-      paths)      print -rn -- "󰌷" ;;      # location
-      gitdocker)  print -rn -- "󰊢 " ;;    # git + docker
-      actions)    print -rn -- ""  ;;      # bulb
-      *)          print -rn -- ""  ;;
-    esac
-  else
-    case "$key" in
-      type)       print -rn -- "[T]" ;;
-      dir)        print -rn -- "[D]" ;;
-      perms)      print -rn -- "[P]" ;;
-      dates)      print -rn -- "[C]" ;;
-      paths)      print -rn -- "[L]" ;;
-      gitdocker)  print -rn -- "[G]" ;;
-      actions)    print -rn -- "[!]" ;;
-      *)          print -rn -- "[*]" ;;
-    esac
-  fi
-}
 
 # Theme application
 _apply_theme() {
@@ -139,61 +112,13 @@ _kv_path() {
   _kv "$label" "$disp"
 }
 
-# Glyph for KV labels
-_glyph() {
-  local key="$1"
-  if _has_nerd; then
-    case "$key" in
-      type) echo "󰈙";; size) echo "󰍛";; link) echo "";; entries) echo "󰚌";; disk) echo "󰋊";;
-      perms) echo "󰌾";; created) echo "󰃭";; modified) echo "";; rel) echo "󰉖";; abs) echo "󰉌";;
-      git) echo "󰊢";; docker) echo "";; info) echo "󰋽";; lint) echo "󰙂";; try) echo "";; tip) echo "";;
-      extract) echo "󰁫";; archive) echo "󰇙";;
-      *) echo "";;
-    esac
-  else
-    case "$key" in
-      type) echo "[T]";; size) echo "[S]";; link) echo "[L]";; entries) echo "[E]";; disk) echo "[D]";;
-      perms) echo "[P]";; created) echo "[C]";; modified) echo "[M]";; rel) echo "[r]";; abs) echo "[a]";;
-      git) echo "[G]";; docker) echo "[K]";; info) echo "[i]";; lint) echo "[lint]";; try) echo "[try]";; tip) echo "[!]";;
-      extract) echo "[x]";; archive) echo "[arc]";;
-      *) echo "[*]";;
-    esac
-  fi
-}
-
 # KV with glyph
 _kvx() {
   local _unused_key="$1"; shift; local label="$1"; shift; local value="$*"
   _kv "$label" "$value"
 }
 
-# Command category glyph and color for list bullets
-_cmd_icon() {
-  local cmd="$1"
-  if _has_nerd; then
-    case "$cmd" in
-      bat|less|glow|open) echo "";;             # view
-      jq|yq)              echo "";;             # parse
-      ruff|eslint|yamllint|markdownlint|shellcheck|hadolint|vale|cspell|typos) echo "";; # lint
-      black|prettier|shfmt) echo "";;           # format
-      unzip|tar|gunzip|bunzip2|unxz|7z) echo "";; # archive
-      *) echo "";;
-    esac
-  else
-    echo "*"
-  fi
-}
-_cmd_color() {
-  local cmd="$1"
-  case "$cmd" in
-    bat|less|glow|open) echo "$CYAN" ;;
-    jq|yq)              echo "$MAGENTA" ;;
-    ruff|eslint|yamllint|markdownlint|shellcheck|hadolint|vale|cspell|typos) echo "$YELLOW" ;;
-    black|prettier|shfmt) echo "$GREEN" ;;
-    unzip|tar|gunzip|bunzip2|unxz|7z) echo "$BLUE" ;;
-    *) echo "$LABEL" ;;
-  esac
-}
+# Command category glyph and color helpers moved to lib/_sections.zsh
 
 # Human-readable size
 _hr_size() {
