@@ -570,7 +570,7 @@ finfo() {
 
   # Aggregation state for group summary
   typeset -A _ext_count=()
-  local _total_files=0 _total_dirs=0 _largest_name="" _largest_size=0 _oldest_name="" _oldest_epoch=0 _quar_count=0
+  local _total_files=0 _total_dirs=0 _largest_name="" _largest_size=0 _oldest_name="" _oldest_epoch=0 _quar_count=0 _total_bytes=0 _hl_multi_count=0
 
   # Helper: process one target
   _finfo_print_one() {
@@ -598,13 +598,14 @@ finfo() {
   fi
 
   # stat block
-  local perms_sym perms_oct size_bytes created_at modified_at created_epoch modified_epoch
+  local perms_sym perms_oct size_bytes created_at modified_at created_epoch modified_epoch link_count
     local path_arg="$target"; [[ "${path_arg}" == -* ]] && path_arg="./${path_arg}"
   if [[ $OSTYPE == darwin* ]]; then
     local stat_bin="/usr/bin/stat"; [[ -x $stat_bin ]] || stat_bin="stat"
     perms_sym=$($stat_bin -f '%Sp' "$path_arg" 2>/dev/null)
     perms_oct=$($stat_bin -f '%p' "$path_arg" 2>/dev/null)
     size_bytes=$($stat_bin -f '%z' "$path_arg" 2>/dev/null)
+    link_count=$($stat_bin -f '%l' "$path_arg" 2>/dev/null)
     created_at=$($stat_bin -f '%SB' -t '%b %d %Y %H:%M' "$path_arg" 2>/dev/null)
     modified_at=$($stat_bin -f '%Sm' -t '%b %d %Y %H:%M' "$path_arg" 2>/dev/null)
     created_epoch=$($stat_bin -f '%B' "$path_arg" 2>/dev/null)
@@ -613,6 +614,7 @@ finfo() {
     perms_sym=$(stat -c '%A' -- "$path_arg")
     perms_oct=$(stat -c '%a' -- "$path_arg")
     size_bytes=$(stat -c '%s' -- "$path_arg")
+    link_count=$(stat -c '%h' -- "$path_arg")
     created_at=$(stat -c '%w' -- "$path_arg"); [[ "$created_at" == '-' ]] && created_at="unknown"
     modified_at=$(stat -c '%y' -- "$path_arg")
     created_epoch=$(stat -c '%W' -- "$path_arg" 2>/dev/null)
@@ -744,6 +746,10 @@ finfo() {
     if [[ -f "$path_arg" ]]; then
       local astats; astats=$(_archive_stats "$path_arg" "$name")
       [[ -n "$astats" ]] && _kv "Archive" "$astats"
+    fi
+    # Hard links
+    if [[ -f "$path_arg" && "$link_count" == <-> && $link_count -gt 1 ]]; then
+      _kv "Links" "hardlinks: ${link_count}"
     fi
     # Monitor growth/shrink rate (files only; optional)
     if (( opt_monitor )) && [[ -f "$path_arg" ]]; then
@@ -1062,6 +1068,8 @@ finfo() {
         local _qtmp2; _qtmp2=$(xattr -p com.apple.quarantine "$path_arg" 2>/dev/null)
         [[ -n "$_qtmp2" ]] && (( _quar_count++ ))
       fi
+      if [[ ${size_bytes:-0} == <-> ]]; then _total_bytes=$((_total_bytes + size_bytes)); fi
+      if [[ "$link_count" == <-> && $link_count -gt 1 ]]; then (( _hl_multi_count++ )); fi
     fi
     (( _ext_count[$_ext]++ ))
     return 0
@@ -1087,12 +1095,19 @@ finfo() {
         printf "  %s%-*s %s\n" "$LABEL" 12 "By type:" "${(j:, :)ext_lines}"
       fi
       [[ -n "$_largest_name" ]] && _kv "Largest" "${_largest_name} ${DIM}($(_hr_size $_largest_size), ${_largest_size} B)${RESET}"
+      if (( _total_bytes > 0 )); then
+        local _tot_disp; _tot_disp=$(_hr_size_fmt $_total_bytes "$unit_scheme")
+        _kv "Total" "${_tot_disp} ${DIM}(${_total_bytes} B)${RESET}"
+      fi
       if (( _oldest_epoch > 0 )); then
         local _oldest_rel; _oldest_rel=$(_fmt_ago $(( $(date +%s) - _oldest_epoch )))
         _kv "Oldest" "${_oldest_name} ${DIM}(${_oldest_rel})${RESET}"
       fi
       if (( _quar_count > 0 )); then
         _kv "Quarantine" "${YELLOW}${_quar_count}${RESET} flagged"
+      fi
+      if (( _hl_multi_count > 0 )); then
+        _kv "Hardlinks" "${_hl_multi_count} files with >1 link"
       fi
     fi
   fi
