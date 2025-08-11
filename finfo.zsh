@@ -233,6 +233,7 @@ finfo() {
       --no-icons)    argv_new+=(-b);;
       --monitor)     argv_new+=(-m);;
       --duplicates)  argv_new+=(-d);;
+      --html)        html_output=1;;
       --help)        show_help=1;;
       *)             argv_new+=("$1");;
     esac
@@ -398,6 +399,7 @@ finfo() {
   local opt_force_git=$(( ${#_o_r} > 0 ))
   local opt_monitor=$(( ${#_o_m} > 0 ))
   local opt_duplicates=$(( ${#_o_d} > 0 ))
+  local opt_html=${html_output:-0}
 
   # Long implies verbose
   if (( opt_long )); then opt_verbose=1; fi
@@ -520,8 +522,8 @@ finfo() {
     BULLET=""
   fi
 
-  # Decide whether to emit pretty sections (skip when json/porcelain/compact)
-    local emit_pretty=$(( (opt_json || opt_porcelain || opt_compact) ? 0 : 1 ))
+  # Decide whether to emit pretty sections (skip when json/porcelain/compact|html)
+    local emit_pretty=$(( (opt_json || opt_porcelain || opt_compact || opt_html) ? 0 : 1 ))
 
     if (( emit_pretty )); then
     # Header bar: one-line headline (name · short type · size · lines)
@@ -1004,6 +1006,36 @@ finfo() {
       "$qa_json" "$ac_json"
       return 0
     fi
+
+  # HTML mode: emit a minimal single-file report (self-contained plaintext/HTML)
+  if (( opt_html )); then
+    # Very simple HTML wrapping of key sections
+    local title="finfo: ${name}"
+    echo "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>${title}</title><style>body{font-family:ui-monospace,Menlo,Consolas,monospace;background:#111;color:#ddd;padding:16px} h1,h2{color:#9cf} .dim{color:#888} .sec{margin-top:1em} code{color:#cdf}</style></head><body>"
+    printf "<h1>%s</h1>\n" "$name"
+    echo "<div class=\"sec\"><h2>Essentials</h2>"
+    printf "<div>Type: <code>%s</code></div>\n" "$file_desc"
+    printf "<div>Size: <code>%s</code> <span class=\"dim\">(%s B)</span></div>\n" "$(_hr_size_fmt ${size_bytes:-0} "$unit_scheme")" "${size_bytes:-0}"
+    [[ -n "$lc" ]] && printf "<div>Lines: <code>%s</code></div>\n" "$lc"
+    printf "<div>Owner: <code>%s</code> Perms: <code>%s</code> (<span class=\"dim\">%s</span>)</div>\n" "$owner_group" "$perms_sym" "$perms_oct"
+    [[ -n "$about_str" ]] && printf "<div>About: <code>%s</code></div>\n" "$about_str"
+    echo "</div>"
+    echo "<div class=\"sec\"><h2>Timeline</h2>"
+    printf "<div>Created: <code>%s</code></div>\n" "$created_at"
+    printf "<div>Modified: <code>%s</code></div>\n" "$modified_at"
+    echo "</div>"
+    echo "<div class=\"sec\"><h2>Paths</h2>"
+    printf "<div>Rel: <code>%s</code></div>\n" "$rel_path"
+    printf "<div>Abs: <code>%s</code></div>\n" "$abs_path"
+    echo "</div>"
+    echo "<div class=\"sec\"><h2>Security</h2>"
+    printf "<div>Gatekeeper: <code>%s</code> Codesign: <code>%s</code> Team: <code>%s</code> Notarization: <code>%s</code> Verdict: <code>%s</code></div>\n" "$gk_assess" "$cs_status" "$cs_team" "$nota_stapled" "$verdict"
+    [[ -n "$qstr" ]] && printf "<div>Quarantine: <code>yes</code> (<span class=\"dim\">%s</span>)</div>\n" "${qstr%%;*}"
+    [[ -n "$froms" ]] && printf "<div>WhereFroms: <code>%s</code></div>\n" "$froms"
+    echo "</div>"
+    echo "</body></html>"
+    _cleanup; return 0
+  fi
 
     # Aggregation for summary (pretty mode only)
     local _ext=""
