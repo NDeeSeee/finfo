@@ -465,6 +465,8 @@ finfo() {
 
   # stat block
   local perms_sym perms_oct size_bytes created_at modified_at created_epoch modified_epoch link_count
+  # quick stats holders
+  local ft_pages ft_headings ft_columns ft_delim ft_image_dims; ft_pages=""; ft_headings=""; ft_columns=""; ft_delim=""; ft_image_dims=""
     local path_arg="$target"; [[ "${path_arg}" == -* ]] && path_arg="./${path_arg}"
   if [[ $OSTYPE == darwin* ]]; then
     local stat_bin="/usr/bin/stat"; [[ -x $stat_bin ]] || stat_bin="stat"
@@ -636,19 +638,19 @@ finfo() {
         *.pdf)
           if [[ $OSTYPE == darwin* ]]; then
             local pages; pages=$(mdls -name kMDItemNumberOfPages -raw "$path_arg" 2>/dev/null)
-            [[ "$pages" != "(null)" && "$pages" == <-> ]] && _kv "Pages" "$pages"
+            if [[ "$pages" != "(null)" && "$pages" == <-> ]]; then ft_pages="$pages"; _kv "Pages" "$pages"; fi
           fi
           ;;
         *.png|*.jpg|*.jpeg|*.gif|*.tif|*.tiff|*.bmp|*.heic)
           if [[ $OSTYPE == darwin* ]] && command -v sips >/dev/null 2>&1; then
             local dim; dim=$(sips -g pixelWidth -g pixelHeight "$path_arg" 2>/dev/null | awk '/pixel(Width|Height):/{print $2}' | paste -sd 'x' -)
-            [[ -n "$dim" ]] && _kv "Image" "${dim}"
+            if [[ -n "$dim" ]]; then ft_image_dims="$dim"; _kv "Image" "${dim}"; fi
           fi
           ;;
         *.md|*.markdown)
           if command -v grep >/dev/null 2>&1; then
             local hcnt; hcnt=$(grep -E '^[#]{1,6} ' -c -- "$path_arg" 2>/dev/null || echo 0)
-            [[ "$hcnt" == <-> ]] && _kv "Headings" "$hcnt"
+            if [[ "$hcnt" == <-> ]]; then ft_headings="$hcnt"; _kv "Headings" "$hcnt"; fi
           fi
           ;;
         *.csv|*.tsv|*.txt)
@@ -664,7 +666,7 @@ finfo() {
             if (( max>0 )); then
               local cols=$(( max + 1 ))
               local dname="comma"; [[ "$dl" == $'\t' ]] && dname="tab"; [[ "$dl" == ";" ]] && dname="semicolon"; [[ "$dl" == '|' ]] && dname="pipe"
-              _kv "Columns" "${cols} ${DIM}(delimiter: ${dname})${RESET}"
+              ft_columns="$cols"; ft_delim="$dname"; _kv "Columns" "${cols} ${DIM}(delimiter: ${dname})${RESET}"
             fi
           fi
           ;;
@@ -906,7 +908,7 @@ finfo() {
     fi
 
   # Porcelain output (stable columns, no colors/icons)
-    if (( opt_porcelain )); then
+  if (( opt_porcelain )); then
     local tab=$'\t'
     print -r -- "name${tab}${name}"
     print -r -- "type${tab}${file_desc}"
@@ -924,16 +926,22 @@ finfo() {
     print -r -- "rel${tab}${rel_path}"
     print -r -- "abs${tab}${abs_path}"
     [[ -n "$link_target" ]] && print -r -- "symlink${tab}${link_target}"
+    [[ -n "$link_count" && "$link_count" == <-> && $link_count -gt 1 ]] && print -r -- "hardlinks${tab}${link_count}"
     [[ -n "$branch" ]] && print -r -- "git_branch${tab}${branch}"
     [[ -n "$git_flag" ]] && print -r -- "git_status${tab}${git_flag}"
     [[ -n "$qstr" ]] && print -r -- "quarantine${tab}yes"
     [[ -n "$froms" ]] && print -r -- "where_froms${tab}${froms}"
     [[ -n "$hash_algo" && -n "$checksum" ]] && print -r -- "${hash_algo}${tab}${checksum}"
+    [[ -n "$ft_pages" ]] && print -r -- "pages${tab}${ft_pages}"
+    [[ -n "$ft_headings" ]] && print -r -- "headings${tab}${ft_headings}"
+    [[ -n "$ft_columns" ]] && print -r -- "columns${tab}${ft_columns}"
+    [[ -n "$ft_delim" ]] && print -r -- "delimiter${tab}${ft_delim}"
+    [[ -n "$ft_image_dims" ]] && print -r -- "image_dims${tab}${ft_image_dims}"
       return 0
     fi
 
   # JSON mode: print machine-readable output and exit
-    if (( opt_json )); then
+  if (( opt_json )); then
     _json_escape() { local s="$1"; s=${s//\\/\\\\}; s=${s//\"/\\\"}; s=${s//$'\n'/\\n}; print -rn -- "$s"; }
     local j_name; j_name=$(_json_escape "$name")
     local j_abs; j_abs=$(_json_escape "$abs_path")
@@ -947,6 +955,8 @@ finfo() {
     local j_branch; j_branch=$(_json_escape "$branch")
     local j_gitflag; j_gitflag=$(_json_escape "$git_flag")
     local j_link; j_link=$(_json_escape "$link_target")
+    local j_img; j_img=$(_json_escape "$ft_image_dims")
+    local j_delim; j_delim=$(_json_escape "$ft_delim")
     # Build arrays
     local -a qual_lines act_lines
     local qa_json="["; local first=1; local q
@@ -959,7 +969,7 @@ finfo() {
       local aa; aa=$(_json_escape "$a");
       (( first )) || ac_json+=" ,"; first=0; ac_json+="\"$aa\""
     done; ac_json+="]"
-    printf '{"name":"%s","path":{"abs":"%s","rel":"%s"},"is_dir":%s,"type":{"description":"%s","is_text":"%s","charset":"%s"},"size":{"bytes":%s,"human":"%s"},"lines":%s,"perms":{"symbolic":"%s","octal":"%s","explain":"%s"},"dates":{"created":"%s","modified":"%s"},"git":{"present":%s,"branch":"%s","status":"%s"},"symlink":{"is_symlink":%s,"target":"%s","target_exists":%s},"dir":{"num_dirs":%s,"num_files":%s,"size_human":"%s"},"quality":%s,"actions":%s}\n' \
+    printf '{"name":"%s","path":{"abs":"%s","rel":"%s"},"is_dir":%s,"type":{"description":"%s","is_text":"%s","charset":"%s"},"size":{"bytes":%s,"human":"%s"},"lines":%s,"perms":{"symbolic":"%s","octal":"%s","explain":"%s"},"dates":{"created":"%s","modified":"%s"},"git":{"present":%s,"branch":"%s","status":"%s"},"links":{"hardlinks":%s},"symlink":{"is_symlink":%s,"target":"%s","target_exists":%s},"dir":{"num_dirs":%s,"num_files":%s,"size_human":"%s"},"filetype":{"pages":%s,"headings":%s,"columns":%s,"delimiter":"%s","image_dims":"%s"},"quality":%s,"actions":%s}\n' \
       "$j_name" "$j_abs" "$j_rel" \
       $([[ -d "$target" ]] && echo true || echo false) \
       "$j_type" "$is_text" "$j_charset" \
@@ -968,8 +978,10 @@ finfo() {
       "$j_perms" "${perms_oct:-}" "$j_permexp" \
       "$j_created" "$j_modified" \
       $([[ -n "$branch" ]] && echo true || echo false) "$j_branch" "$j_gitflag" \
+      $([[ -n "$link_count" && "$link_count" == <-> ]] && echo "$link_count" || echo null) \
       $(( is_symlink ? 1 : 0 )) "$j_link" $(( link_exists ? 1 : 0 )) \
       $([[ -d "$target" ]] && echo ${#subdirs} || echo 0) $([[ -d "$target" ]] && echo ${#files} || echo 0) "$([[ -d "$target" ]] && echo "$dsz" || echo "")" \
+      $([[ -n "$ft_pages" ]] && echo "$ft_pages" || echo null) $([[ -n "$ft_headings" ]] && echo "$ft_headings" || echo null) $([[ -n "$ft_columns" ]] && echo "$ft_columns" || echo null) "$j_delim" "$j_img" \
       "$qa_json" "$ac_json"
       return 0
     fi
