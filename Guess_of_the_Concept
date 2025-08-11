@@ -417,8 +417,12 @@ MY OWN THOUGHTS:
     SWITCHING BETWEEN SHORT AND LONG FORMAT (for example, for pdf, docx, etc.) should be easy
     FOR DIRS and FILE (probably) SHOW SIMPLE STATS LIKE (visited X times, etc.)
     ARCHIVES (zip, tar, etc.) unopened - should be shown with simple stats like (size, number of files, etc.)
-        opened / unopened should be easy to open / archive with interactive mode
+        \\ opened / unopened should be easy to open / archive with interactive mode
     IF FILE SIZE CHANGING FAST - SHOW A BAR WITH A PROGRESS OF DOWNLOADING / UPLOADING (for example, if you are downloading a file, and the size is changing fast, you should see a bar with a progress of downloading)
+        \\ same for cp/mv/rm/..... ESPECIALLY FOR rm
+        \\ for rm it should be also a separate plugin to add when I just run rm -rf .
+        \\ so it have to automatically check process which running with that file to print out either it moving, copying, downloading so on. 
+    
     FOR SCRIPTS IN HINTS SHOW A WAY OF RUNNING (like Rscript, python3 .py, etc., java -jar, cwltools etc. )
     ANONTATIONS FOR ALL FILETYPES
     FOR DIRS SHOW A WAY OF OPENING IN FINDER (like open .) OR OTHER SUPPOETED APPS (like open with vscode, sublime, cursor etc.)
@@ -437,6 +441,12 @@ MY OWN THOUGHTS:
     FDIR WILL BE EITHER SEPARATE TOOL OR EXTENDED MERGED WITH FINFO
     CHANGE RIGHTS INTERACTIVELY (like arrow up / down for chmod of each of the rights, showing with that the resuls (so it have to be explained why those are 6 xy-))
     ADD AS A SEPARATE TOOL COMBINATION OF cd AND fd (from root selection) to go to the dir with that filename chosing by up/donw arrows chosing thte one you need
+    ADD INTERNAL CONVERTER OF ENCODING / 
+    ADD (as a separate tool) PARSE .zshrc and show all the aliases, functions, etc.
+    ADD (as a separate tool) MASTER OF PACKAGES (like pip, conda, mamba, brew, npm, R, yarn etc)
+    ADD NOTE FEATURE, TODO, QUICKACTIONS
+
+
     
 
 
