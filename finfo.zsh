@@ -1,52 +1,9 @@
 # finfo – rich file/dir inspector for zsh (macOS-friendly)
 # Lightweight, fast, colorful; minimal external calls.
 
-# Optional Nerd Font icon map
-if [[ -z ${i_oct_file_directory:-} ]] && [[ -f ~/.local/share/nerd-fonts/i_all.sh ]]; then
-  source ~/.local/share/nerd-fonts/i_all.sh
-fi
-: ${i_oct_file_directory:=}
-: ${i_oct_link:=}
-: ${i_fa_file_o:=}
-
-# Icons resolver
-typeset -gA _NF_KEY=(
-  dir     oct_file_directory
-  link    oct_link
-  file    fa_file_o
-)
-_icon() { local var="i_${_NF_KEY[$1]:-fa_file_o}"; print -rn -- "${(P)var}"; }
-
-# Colors (tput if available, otherwise ANSI)
-_finfo_colors() {
-  if command -v tput >/dev/null 2>&1 && [[ -t 1 ]]; then
-    local colors; colors=$(tput colors 2>/dev/null) || colors=0
-    if (( colors >= 8 )); then
-      BOLD=$(tput bold); DIM=$(tput dim); RESET=$(tput sgr0)
-      RED=$(tput setaf 1); GREEN=$(tput setaf 2); YELLOW=$(tput setaf 3)
-      BLUE=$(tput setaf 4); MAGENTA=$(tput setaf 5); CYAN=$(tput setaf 6); WHITE=$(tput setaf 7)
-      return
-    fi
-  fi
-  BOLD=$'\033[1m'; DIM=$'\033[2m'; RESET=$'\033[0m'
-  RED=$'\033[31m'; GREEN=$'\033[32m'; YELLOW=$'\033[33m'
-  BLUE=$'\033[34m'; MAGENTA=$'\033[35m'; CYAN=$'\033[36m'; WHITE=$'\033[37m'
-}
-
-# Terminal helpers and formatting utilities
-_has_nerd() { [[ -n ${i_oct_file_directory:-} ]] || command -v lsd >/dev/null 2>&1; }
-_term_cols() { local c=${COLUMNS:-}; [[ -z $c ]] && c=$(tput cols 2>/dev/null || echo 120); echo $c; }
-_ellipsize_middle() {
-  local s="$1" max="$2"; (( ${#s} <= max )) && { print -r -- "$s"; return; }
-  local head=$(( (max-1)/2 )) tail=$(( max - head - 1 ));
-  print -r -- "${s[1,head]}…${s[-tail,-1]}"
-}
-_color256() {
-  local code="$1"; if command -v tput >/dev/null 2>&1; then tput setaf "$code" 2>/dev/null; fi
-}
-_bg256() {
-  local code="$1"; if command -v tput >/dev/null 2>&1; then tput setab "$code" 2>/dev/null; fi
-}
+source ./lib/_icons.zsh
+source ./lib/_colors.zsh
+source ./lib/_format.zsh
 
 # Format seconds as human-readable age (largest 2 units) + " ago"
 _fmt_ago() {
@@ -72,29 +29,7 @@ _fmt_ago() {
   print -r -- "${joined} ago"
 }
 
-# Format seconds as duration (largest 2 units), no suffix
-_fmt_dur() {
-  local secs=${1:-0}
-  (( secs < 0 )) && secs=0
-  local y=$(( secs/31557600 ))
-  local rem=$(( secs%31557600 ))
-  local mo=$(( rem/2629800 ))
-  rem=$(( rem%2629800 ))
-  local d=$(( rem/86400 ))
-  rem=$(( rem%86400 ))
-  local h=$(( rem/3600 ))
-  rem=$(( rem%3600 ))
-  local m=$(( rem/60 ))
-  typeset -a parts; parts=()
-  if (( y>0 )); then parts+=("${y}y"); fi
-  if (( mo>0 && ${#parts[@]}<2 )); then parts+=("${mo}mo"); fi
-  if (( d>0 && ${#parts[@]}<2 )); then parts+=("${d}d"); fi
-  if (( h>0 && ${#parts[@]}<2 )); then parts+=("${h}h"); fi
-  if (( m>0 && ${#parts[@]}<2 )); then parts+=("${m}m"); fi
-  if (( ${#parts[@]} == 0 )); then parts+=("0m"); fi
-  local joined="${(j: :)parts}"
-  print -r -- "$joined"
-}
+source ./lib/_size.zsh
 
 # Section icon resolver (with ASCII fallbacks)
 _sec_icon() {
