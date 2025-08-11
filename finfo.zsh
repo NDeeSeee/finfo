@@ -506,6 +506,7 @@ finfo() {
       --theme)       shift; export FINFOTHEME="$1";;
       --icons)       argv_new+=(-G);;
       --no-icons)    argv_new+=(-b);;
+      --monitor)     argv_new+=(-m);;
       --help)        show_help=1;;
       *)             argv_new+=("$1");;
     esac
@@ -513,9 +514,9 @@ finfo() {
   done
   set -- "${argv_new[@]}"
 
-  typeset -a _o_n _o_J _o_Y _o_N _o_q _o_c _o_v _o_G _o_b _o_H _o_k _o_s _o_B _o_L _o_P _o_W _o_Z _o_R _o_r
+  typeset -a _o_n _o_J _o_Y _o_N _o_q _o_c _o_v _o_G _o_b _o_H _o_k _o_s _o_B _o_L _o_P _o_W _o_Z _o_R _o_r _o_m
   typeset -a _o_U
-  zparseopts -D -E n=_o_n J=_o_J Y=_o_Y N=_o_N q=_o_q c=_o_c v=_o_v G=_o_G b=_o_b H=_o_H k=_o_k s=_o_s B=_o_B L=_o_L P=_o_P W:=_o_W Z:=_o_Z U:=_o_U R=_o_R r=_o_r
+  zparseopts -D -E n=_o_n J=_o_J Y=_o_Y N=_o_N q=_o_q c=_o_c v=_o_v G=_o_G b=_o_b H=_o_H k=_o_k s=_o_s B=_o_B L=_o_L P=_o_P W:=_o_W Z:=_o_Z U:=_o_U R=_o_R r=_o_r m=_o_m
   local opt_no_color=$(( ${#_o_n} > 0 ))
   local opt_json=$(( ${#_o_J} > 0 ))
   local opt_yaml=$(( ${#_o_Y} > 0 ))
@@ -537,6 +538,7 @@ finfo() {
   local unit_scheme="${FINFO_UNIT:-iec}"; (( ${#_o_U} > 0 )) && unit_scheme="${_o_U[2]}"; export FINFO_UNIT="$unit_scheme"
   local opt_no_git=$(( ${#_o_R} > 0 ))
   local opt_force_git=$(( ${#_o_r} > 0 ))
+  local opt_monitor=$(( ${#_o_m} > 0 ))
 
   # Long implies verbose
   if (( opt_long )); then opt_verbose=1; fi
@@ -888,8 +890,8 @@ finfo() {
   fi
   fi
 
-  # 5b) Creator metadata (Spotlight)
-  if [[ $OSTYPE == darwin* ]]; then
+  # 5b) Creator metadata (Spotlight) — show in long/verbose only
+  if [[ $OSTYPE == darwin* && ( opt_long || opt_verbose ) ]]; then
     local creator_val authors_val
     creator_val=$(mdls -name kMDItemCreator -raw "$path_arg" 2>/dev/null)
     authors_val=$(mdls -name kMDItemAuthors -raw "$path_arg" 2>/dev/null)
