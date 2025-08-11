@@ -428,6 +428,7 @@ finfo() {
   # Aggregation state for group summary
   typeset -A _ext_count=()
   local _total_files=0 _total_dirs=0 _largest_name="" _largest_size=0 _oldest_name="" _oldest_epoch=0 _quar_count=0 _total_bytes=0 _hl_multi_count=0
+  typeset -a _size_entries; _size_entries=()
 
   # Helper: process one target
   _finfo_print_one() {
@@ -1021,7 +1022,7 @@ finfo() {
         local _qtmp2; _qtmp2=$(xattr -p com.apple.quarantine "$path_arg" 2>/dev/null)
         [[ -n "$_qtmp2" ]] && (( _quar_count++ ))
       fi
-      if [[ ${size_bytes:-0} == <-> ]]; then _total_bytes=$((_total_bytes + size_bytes)); fi
+      if [[ ${size_bytes:-0} == <-> ]]; then _total_bytes=$((_total_bytes + size_bytes)); _size_entries+="$size_bytes\t$rel_path"; fi
       if [[ "$link_count" == <-> && $link_count -gt 1 ]]; then (( _hl_multi_count++ )); fi
     fi
     (( _ext_count[$_ext]++ ))
@@ -1039,13 +1040,10 @@ finfo() {
     if (( ! opt_json && ! opt_porcelain && ! opt_compact )); then
       _section "SUMMARY" type
       _kv "Items" "$(( _total_files + _total_dirs )) total — ${_total_files} files, ${_total_dirs} dirs"
-      # Extensions
-      local k; local -a ext_lines=()
-      for k in ${(k)_ext_count}; do
-        ext_lines+=("${k}:${_ext_count[$k]}")
-      done
-      if (( ${#ext_lines[@]} )); then
-        printf "  %s%-*s %s\n" "$LABEL" 12 "By type:" "${(j:, :)ext_lines}"
+      # Extensions (sorted by count desc)
+      if (( ${#_ext_count[@]} )); then
+        local sorted_types; sorted_types=$(for k in ${(k)_ext_count}; do printf "%s:%s\n" "$k" "${_ext_count[$k]}"; done | sort -t ':' -k2,2nr | paste -sd ', ' -)
+        printf "  %s%-*s %s\n" "$LABEL" 12 "By type:" "$sorted_types"
       fi
       [[ -n "$_largest_name" ]] && _kv "Largest" "${_largest_name} ${DIM}($(_hr_size $_largest_size), ${_largest_size} B)${RESET}"
       if (( _total_bytes > 0 )); then
@@ -1061,6 +1059,18 @@ finfo() {
       fi
       if (( _hl_multi_count > 0 )); then
         _kv "Hardlinks" "${_hl_multi_count} files with >1 link"
+      fi
+      # Top N files by size
+      if (( ${#_size_entries[@]} > 0 )); then
+        local N=${FINFO_TOPN:-5}
+        local tops; tops=$(printf "%s\n" "${_size_entries[@]}" | sort -nr -k1,1 | head -n $N)
+        local idx=1
+        local line
+        while IFS=$'\t' read -r sz path; do
+          [[ -z "$sz" ]] && continue
+          _kv "Top $idx" "${path} ${DIM}($(_hr_size $sz), ${sz} B)${RESET}"
+          (( idx++ ))
+        done <<< "$tops"
       fi
     fi
   fi
