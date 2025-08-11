@@ -48,3 +48,20 @@ _fmt_ago() {
   local joined="${(j: :)parts}"
   print -r -- "${joined} ago"
 }
+
+# Format seconds to human-friendly duration (e.g., 1h 23m, 45s)
+_fmt_duration() {
+  local secs=${1:-0}
+  (( secs < 0 )) && secs=0
+  local h=$(( secs/3600 ))
+  local rem=$(( secs%3600 ))
+  local m=$(( rem/60 ))
+  local s=$(( rem%60 ))
+  if (( h>0 )); then
+    printf '%dh %02dm' "$h" "$m"
+  elif (( m>0 )); then
+    printf '%dm %02ds' "$m" "$s"
+  else
+    printf '%ds' "$s"
+  fi
+}

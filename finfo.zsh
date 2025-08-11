@@ -647,6 +647,16 @@ finfo() {
             if [[ -n "$dim" ]]; then ft_image_dims="$dim"; _kv "Image" "${dim}"; fi
           fi
           ;;
+        *.mp3|*.m4a|*.aac|*.wav|*.aiff|*.aif|*.flac|*.mp4|*.mov|*.m4v)
+          if [[ $OSTYPE == darwin* ]]; then
+            local dur=""; dur=$(mdls -name kMDItemDurationSeconds -raw "$path_arg" 2>/dev/null)
+            if [[ "$dur" != "(null)" && -n "$dur" ]]; then
+              local dur_s; dur_s=${dur%.*}
+              local hstr; hstr=$(_fmt_duration ${dur_s:-0})
+              _kv "Duration" "$hstr"
+            fi
+          fi
+          ;;
         *.md|*.markdown)
           if command -v grep >/dev/null 2>&1; then
             local hcnt; hcnt=$(grep -E '^[#]{1,6} ' -c -- "$path_arg" 2>/dev/null || echo 0)
@@ -957,6 +967,9 @@ finfo() {
     local j_link; j_link=$(_json_escape "$link_target")
     local j_img; j_img=$(_json_escape "$ft_image_dims")
     local j_delim; j_delim=$(_json_escape "$ft_delim")
+    local j_pages=$(_json_escape "$ft_pages")
+    local j_headings=$(_json_escape "$ft_headings")
+    local j_columns=$(_json_escape "$ft_columns")
     # Build arrays
     local -a qual_lines act_lines
     local qa_json="["; local first=1; local q
@@ -981,7 +994,7 @@ finfo() {
       $([[ -n "$link_count" && "$link_count" == <-> ]] && echo "$link_count" || echo null) \
       $(( is_symlink ? 1 : 0 )) "$j_link" $(( link_exists ? 1 : 0 )) \
       $([[ -d "$target" ]] && echo ${#subdirs} || echo 0) $([[ -d "$target" ]] && echo ${#files} || echo 0) "$([[ -d "$target" ]] && echo "$dsz" || echo "")" \
-      $([[ -n "$ft_pages" ]] && echo "$ft_pages" || echo null) $([[ -n "$ft_headings" ]] && echo "$ft_headings" || echo null) $([[ -n "$ft_columns" ]] && echo "$ft_columns" || echo null) "$j_delim" "$j_img" \
+      $([[ -n "$ft_pages" ]] && echo "$j_pages" || echo null) $([[ -n "$ft_headings" ]] && echo "$j_headings" || echo null) $([[ -n "$ft_columns" ]] && echo "$j_columns" || echo null) "$j_delim" "$j_img" \
       "$qa_json" "$ac_json"
       return 0
     fi
