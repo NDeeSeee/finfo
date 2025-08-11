@@ -549,7 +549,7 @@ finfo() {
   # Do not shift here, or we will drop the first non-option argument (the target path).
 
   if (( show_help )); then
-    echo "Usage: finfo [--brief|--long|--porcelain|--json] [--width N] [--hash sha256|blake3] [--icons|--no-icons] [--git|--no-git] PATH"
+    echo "Usage: finfo [--brief|--long|--porcelain|--json] [--width N] [--hash sha256|blake3] [--unit bytes|iec|si] [--icons|--no-icons] [--git|--no-git] [--monitor] [--duplicates] PATH..."
     _cleanup; return 0
   fi
 
