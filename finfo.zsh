@@ -507,6 +507,7 @@ finfo() {
       --icons)       argv_new+=(-G);;
       --no-icons)    argv_new+=(-b);;
       --monitor)     argv_new+=(-m);;
+      --duplicates)  argv_new+=(-d);;
       --help)        show_help=1;;
       *)             argv_new+=("$1");;
     esac
@@ -514,9 +515,9 @@ finfo() {
   done
   set -- "${argv_new[@]}"
 
-  typeset -a _o_n _o_J _o_Y _o_N _o_q _o_c _o_v _o_G _o_b _o_H _o_k _o_s _o_B _o_L _o_P _o_W _o_Z _o_R _o_r _o_m
+  typeset -a _o_n _o_J _o_Y _o_N _o_q _o_c _o_v _o_G _o_b _o_H _o_k _o_s _o_B _o_L _o_P _o_W _o_Z _o_R _o_r _o_m _o_d
   typeset -a _o_U
-  zparseopts -D -E n=_o_n J=_o_J Y=_o_Y N=_o_N q=_o_q c=_o_c v=_o_v G=_o_G b=_o_b H=_o_H k=_o_k s=_o_s B=_o_B L=_o_L P=_o_P W:=_o_W Z:=_o_Z U:=_o_U R=_o_R r=_o_r m=_o_m
+  zparseopts -D -E n=_o_n J=_o_J Y=_o_Y N=_o_N q=_o_q c=_o_c v=_o_v G=_o_G b=_o_b H=_o_H k=_o_k s=_o_s B=_o_B L=_o_L P=_o_P W:=_o_W Z:=_o_Z U:=_o_U R=_o_R r=_o_r m=_o_m d=_o_d
   local opt_no_color=$(( ${#_o_n} > 0 ))
   local opt_json=$(( ${#_o_J} > 0 ))
   local opt_yaml=$(( ${#_o_Y} > 0 ))
@@ -539,6 +540,7 @@ finfo() {
   local opt_no_git=$(( ${#_o_R} > 0 ))
   local opt_force_git=$(( ${#_o_r} > 0 ))
   local opt_monitor=$(( ${#_o_m} > 0 ))
+  local opt_duplicates=$(( ${#_o_d} > 0 ))
 
   # Long implies verbose
   if (( opt_long )); then opt_verbose=1; fi
@@ -1072,6 +1074,61 @@ finfo() {
       if (( _quar_count > 0 )); then
         _kv "Quarantine" "${YELLOW}${_quar_count}${RESET} flagged"
       fi
+    fi
+  fi
+
+  # Duplicate finder (pretty-only, on demand)
+  if (( opt_duplicates )) && (( ! opt_json && ! opt_porcelain && ! opt_compact )); then
+    # Collect files under provided targets (recursive)
+    typeset -a to_scan; to_scan=()
+    local t
+    for t in "${targets[@]}"; do
+      if [[ -f "$t" ]]; then
+        to_scan+=("$t")
+      elif [[ -d "$t" ]]; then
+        local -a found=( "$t"/**/*(.N) )
+        (( ${#found[@]} )) && to_scan+=("${found[@]}")
+      fi
+    done
+    local MAX_SCAN=${FINFO_MAX_DUP_SCAN:-2000}
+    local truncated=0
+    if (( ${#to_scan[@]} > MAX_SCAN )); then
+      to_scan=( "${(@)to_scan[1,MAX_SCAN]}" )
+      truncated=1
+    fi
+    # checksum helper
+    _cksum() {
+      local p="$1"; local c=""
+      if command -v shasum >/dev/null 2>&1; then c=$(shasum -a 256 -- "$p" 2>/dev/null | awk '{print $1}')
+      elif command -v openssl >/dev/null 2>&1; then c=$(openssl dgst -sha256 "$p" 2>/dev/null | awk '{print $2}')
+      else c=""; fi
+      print -r -- "$c"
+    }
+    typeset -A sum_to_paths; sum_to_paths=()
+    local f; for f in "${to_scan[@]}"; do
+      local s; s=$(_cksum "$f")
+      [[ -z "$s" ]] && continue
+      if [[ -z ${sum_to_paths[$s]:-} ]]; then sum_to_paths[$s]="$f"; else sum_to_paths[$s]="${sum_to_paths[$s]}\n$f"; fi
+    done
+    # Render only sums with >1 files
+    local has_dups=0
+    for s in ${(k)sum_to_paths}; do
+      local cnt; cnt=$(printf "%s\n" "${sum_to_paths[$s]}" | wc -l | tr -d ' ')
+      if (( cnt > 1 )); then has_dups=1; break; fi
+    done
+    if (( has_dups )); then
+      _section "DUPLICATES" type
+      local s; for s in ${(k)sum_to_paths}; do
+        local cnt; cnt=$(printf "%s\n" "${sum_to_paths[$s]}" | wc -l | tr -d ' ')
+        (( cnt > 1 )) || continue
+        _kv "sha256" "${DIM}${s}${RESET} — ${cnt} files"
+        local i=1
+        while read -r pth; do
+          _kv_path " " "$pth"
+          (( i++ )); (( i>5 )) && break
+        done <<< "${sum_to_paths[$s]}"
+      done
+      (( truncated )) && _kv "Note" "scanned first ${MAX_SCAN} files only"
     fi
   fi
 
