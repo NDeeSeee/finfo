@@ -240,6 +240,41 @@ finfo() {
   done
   set -- "${argv_new[@]}"
 
+  # Subcommand: diff A B → side-by-side metadata diff (porcelain-based)
+  if [[ "$1" == diff ]]; then
+    shift
+    local A="$1" B="$2"
+    if [[ -z "$A" || -z "$B" ]]; then
+      echo "Usage: finfo diff A B"; _cleanup; return 2
+    fi
+    _finfo_colors; _apply_theme "${FINFOTHEME:-default}"
+    local LABEL="$THEME_LABEL" VALUE="$THEME_VALUE" RESET="$RESET"
+    _section "DIFF" type
+    # Collect porcelain maps
+    local outA outB
+    outA=$(finfo --porcelain --no-git -- "$A" 2>/dev/null)
+    outB=$(finfo --porcelain --no-git -- "$B" 2>/dev/null)
+    if [[ -z "$outA" || -z "$outB" ]]; then
+      echo "${RED}✗${RESET} unable to diff (missing data)"; _cleanup; return 1
+    fi
+    typeset -A mA mB
+    local line key val
+    while IFS=$'\t' read -r key val; do [[ -z "$key" ]] && continue; mA[$key]="$val"; done <<< "$outA"
+    while IFS=$'\t' read -r key val; do [[ -z "$key" ]] && continue; mB[$key]="$val"; done <<< "$outB"
+    # Keys of interest (order)
+    local -a keys=( name type size_bytes size_human lines mime uttype owner_group perms_sym perms_oct created modified accessed rel abs symlink hardlinks git_branch git_status quarantine where_froms sha256 blake3 )
+    local printed=0
+    for key in "${keys[@]}"; do
+      local va="${mA[$key]:-}" vb="${mB[$key]:-}"
+      if [[ -n "$va$vb" && "$va" != "$vb" ]]; then
+        printf "  %s%-*s %s → %s%s\n" "$LABEL" 12 "${key}:" "$va" "$vb" "$RESET"
+        printed=1
+      fi
+    done
+    (( printed == 0 )) && printf "  %s%-*s %s\n" "$LABEL" 12 "result:" "${VALUE}no differences in selected fields${RESET}"
+    _cleanup; return 0
+  fi
+
   typeset -a _o_n _o_J _o_Y _o_N _o_q _o_c _o_v _o_G _o_b _o_H _o_k _o_s _o_B _o_L _o_P _o_W _o_Z _o_R _o_r _o_m _o_d
   typeset -a _o_U
   zparseopts -D -E n=_o_n J=_o_J Y=_o_Y N=_o_N q=_o_q c=_o_c v=_o_v G=_o_G b=_o_b H=_o_H k=_o_k s=_o_s B=_o_B L=_o_L P=_o_P W:=_o_W Z:=_o_Z U:=_o_U R=_o_R r=_o_r m=_o_m d=_o_d
