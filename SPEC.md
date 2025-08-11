@@ -100,11 +100,13 @@ Turn the ideas under MY OWN THOUGHTS in `Guess_of_the_Concept` into a pragmatic,
 - Smoke tests for multi-file, brief/long toggles, archive detection, growth monitor (simulate via temp writes)
 
 ## Next steps (immediate)
-1) Phase 1.1: Multi-arg loop in `finfo.zsh` with per-file run and group summary
+1) Phase 1.1: Multi-arg loop in `finfo.zsh` with per-file run and group summary [DONE]
 2) Phase 1.2: Wire `-B` and `-L` flags to existing sections consistently
-3) Phase 1.3: Archive quick stats via `zipinfo -t`/`tar -tf | wc -l` (guarded); keep fast
-4) Phase 1.4: Script run-hints: extend existing `_action_hints` and `_suggest_quality`
-5) Phase 1.5: `--unit` param, unify humanizer
+3) Phase 1.3: Archive quick stats via `zipinfo -t`/`tar -tf | wc -l` (guarded); keep fast [DONE]
+4) Phase 1.4: Script run-hints: extend existing `_action_hints` and `_suggest_quality` [DONE]
+5) Phase 1.5: `--unit` param, unify humanizer [DONE]
+6) Phase 1.6: `--monitor` lightweight file growth/shrink rate with configurable window [DONE]
+7) Phase 1.7: `--duplicates` content duplicate groups (sha256) with cap [DONE]
 
 ## Risks and mitigations
 - Performance on large dirs: cap counts, show “approximate” beyond N entries

@@ -745,6 +745,26 @@ finfo() {
       local astats; astats=$(_archive_stats "$path_arg" "$name")
       [[ -n "$astats" ]] && _kv "Archive" "$astats"
     fi
+    # Monitor growth/shrink rate (files only; optional)
+    if (( opt_monitor )) && [[ -f "$path_arg" ]]; then
+      local s1 s2 dt=${opt_monitor_secs:-1}
+      s1=${size_bytes:-0}
+      sleep $dt
+      if [[ $OSTYPE == darwin* ]]; then
+        local _stat_bin="/usr/bin/stat"; [[ -x $_stat_bin ]] || _stat_bin="stat"
+        s2=$($_stat_bin -f '%z' "$path_arg" 2>/dev/null)
+      else
+        s2=$(stat -c '%s' -- "$path_arg")
+      fi
+      [[ -z "$s2" ]] && s2=$s1
+      local dr=$(( s2 - s1 ))
+      local sign="~"; local color="$WHITE"
+      if (( dr > 0 )); then sign="+"; color="$GREEN"; elif (( dr < 0 )); then sign="-"; color="$YELLOW"; fi
+      local rate_abs=$(( dr>=0 ? dr : -dr ))
+      local per_sec=$(( dt>0 ? rate_abs/dt : rate_abs ))
+      local rate_disp; rate_disp=$(_hr_size_fmt $per_sec "$unit_scheme")
+      _kv "Rate" "${color}${sign}${rate_disp}/s${RESET} ${DIM}(${dt}s window)${RESET}"
+    fi
     # Git (optional)
     local in_repo=0; if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then in_repo=1; fi
     if (( in_repo )) && (( ! opt_no_git || opt_force_git )); then
