@@ -123,6 +123,7 @@ finfo() {
       --copy-rel)    argv_new+=(-Y);;
       --copy-dir)    argv_new+=(-D);;
       --copy-hash)   shift; argv_new+=(-A "$1");;
+      --clear-quarantine) argv_new+=(-Q);;
       --chmod)       shift; argv_new+=(-M "$1");;
       --html)        html_output=1;;
       --help)        show_help=1;;
@@ -141,9 +142,9 @@ finfo() {
   # Subcommand: chmod PATH → interactive chmod helper (arrow-based)
   if [[ "$1" == chmod ]]; then shift; finfo_cmd_chmod "$1"; _cleanup; return $?; fi
 
-  typeset -a _o_n _o_J _o_q _o_c _o_v _o_G _o_b _o_H _o_k _o_s _o_B _o_L _o_P _o_W _o_Z _o_R _o_r _o_m _o_d _o_K _o_T _o_X _o_C _o_O _o_E _o_e _o_Y _o_D _o_A _o_M
+  typeset -a _o_n _o_J _o_q _o_c _o_v _o_G _o_b _o_H _o_k _o_s _o_B _o_L _o_P _o_W _o_Z _o_R _o_r _o_m _o_d _o_K _o_T _o_X _o_C _o_O _o_E _o_e _o_Y _o_D _o_A _o_M _o_Q
   typeset -a _o_U
-  zparseopts -D -E n=_o_n J=_o_J q=_o_q c=_o_c v=_o_v G=_o_G b=_o_b H=_o_H k=_o_k s=_o_s B=_o_B L=_o_L P=_o_P W:=_o_W Z:=_o_Z U:=_o_U R=_o_R r=_o_r m=_o_m d=_o_d K=_o_K T:=_o_T X=_o_X C=_o_C O=_o_O E=_o_E e:=_o_e Y=_o_Y D=_o_D A:=_o_A M:=_o_M
+  zparseopts -D -E n=_o_n J=_o_J q=_o_q c=_o_c v=_o_v G=_o_G b=_o_b H=_o_H k=_o_k s=_o_s B=_o_B L=_o_L P=_o_P W:=_o_W Z:=_o_Z U:=_o_U R=_o_R r=_o_r m=_o_m d=_o_d K=_o_K T:=_o_T X=_o_X C=_o_C O=_o_O E=_o_E e:=_o_e Y=_o_Y D=_o_D A:=_o_A M:=_o_M Q=_o_Q
   local opt_no_color=$(( ${#_o_n} > 0 ))
   local opt_json=$(( ${#_o_J} > 0 ))
   local opt_quiet=$(( ${#_o_q} > 0 ))
@@ -177,6 +178,7 @@ finfo() {
   local copy_hash_algo=""; (( ${#_o_A} > 0 )) && copy_hash_algo="${_o_A[2]}"
   local chmod_octal=""; (( ${#_o_M} > 0 )) && chmod_octal="${_o_M[2]}"
   local opt_html=${html_output:-0}
+  local opt_clear_quar=$(( ${#_o_Q} > 0 ))
 
   # Long implies verbose, and enables keys panel unless explicitly disabled
   if (( opt_long )); then opt_verbose=1; if (( ! opt_no_keys )); then opt_keys=1; fi; fi
@@ -188,7 +190,7 @@ finfo() {
   if [[ "$1" == "--" ]]; then shift; fi
 
   if (( show_help )); then
-    echo "Usage: finfo [--brief|--long|--porcelain|--json|--html] [--width N] [--hash sha256|blake3] [--unit bytes|iec|si] [--icons|--no-icons] [--git|--no-git] [--monitor] [--duplicates] [--keys|--no-keys] [--keys-timeout N] [--copy-path|-C] [--copy-rel] [--copy-dir] [--copy-hash ALGO] [--open|-O] [--reveal|-E] [--edit APP|-e APP] [--chmod OCTAL] [--theme THEME] PATH..."
+    echo "Usage: finfo [--brief|--long|--porcelain|--json|--html] [--width N] [--hash sha256|blake3] [--unit bytes|iec|si] [--icons|--no-icons] [--git|--no-git] [--monitor] [--duplicates] [--keys|--no-keys] [--keys-timeout N] [--copy-path|-C] [--copy-rel] [--copy-dir] [--copy-hash ALGO] [--open|-O] [--reveal|-E] [--edit APP|-e APP] [--chmod OCTAL] [--clear-quarantine|-Q] [--theme THEME] PATH..."
     _cleanup; return 0
   fi
 
@@ -773,6 +775,18 @@ finfo() {
       else
         if (( ! opt_json && ! opt_porcelain && ! opt_compact )); then
           printf "  %s%s %-*s %s\n" "$LABEL" "$(_glyph perms)" 12 "Chmod:" "${YELLOW}ignored invalid octal '${chmod_octal}'${RESET}"
+        fi
+      fi
+    fi
+    if (( opt_clear_quar )); then
+      if [[ $OSTYPE == darwin* ]]; then
+        xattr -d com.apple.quarantine -- "$tgt_abs" >/dev/null 2>&1 || true
+        if (( ! opt_json && ! opt_porcelain && ! opt_compact )); then
+          printf "  %s%s %-*s %s\n" "$LABEL" "$(_glyph info)" 12 "Quarantine:" "${GREEN}cleared com.apple.quarantine${RESET}"
+        fi
+      else
+        if (( ! opt_json && ! opt_porcelain && ! opt_compact )); then
+          printf "  %s%s %-*s %s\n" "$LABEL" "$(_glyph info)" 12 "Quarantine:" "${YELLOW}not applicable on this OS${RESET}"
         fi
       fi
     fi

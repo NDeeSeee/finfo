@@ -57,6 +57,7 @@ Why these matter: reduce cognitive load; surface context; be actionable; create 
     - `--copy-rel`: copy relative path; `--copy-dir`: copy parent directory
     - `--copy-hash ALGO`: compute and copy checksum (`sha256` or `blake3`)
     - `--chmod OCTAL`: change permissions (explicit, prints colored confirmation)
+    - `--clear-quarantine` or `-Q`: remove `com.apple.quarantine` xattr (macOS-only; prints colored confirmation)
   - `--open-with APP` suggest or open via `open -a APP` (darwin)
   - `--unit bytes|iec|si` size unit preference for display
 - Output
@@ -104,6 +105,25 @@ Planned new modules (iconic features):
   - `_nlc.zsh`: Natural‑language command interface (prompt→plan→commands)
   - `_suggest.zsh`: Context‑aware command suggestions and shortcuts
   - `_nocode.zsh`: Low/no‑code connectors (flows export, webhooks)
+  - `_fonts.zsh`: Cross‑platform font discovery, monospace matching, Nerd Font checks
+
+### Dashboard assets layout (future)
+- `assets/` static bundle for the dashboard (no external CDNs):
+  - `assets/css/` themeable CSS (CSS variables, prefers‑color‑scheme)
+  - `assets/js/` light JS (search, filtering, table sort; htmx/alpine optional)
+  - `assets/fonts/` optional icon set; fall back to Unicode
+  - `assets/img/` inlined SVG badges; lazy thumbnails where supported
+- `dist/` build output for exports:
+  - `dist/index.html` (single‑page app using embedded JSON payload)
+  - `dist/assets/*` (optional externalized bundle when not single‑file)
+
+Guidelines:
+- Offline‑first, no trackers; large data as embedded JSON <script> or sidecar `data.json`
+- CSS with variables for theme hues; WCAG AA contrast; reduced motion support
+- Font stack: prefer installed Nerd Monospace (JetBrains Mono Nerd, Hack Nerd, FiraCode Nerd), fallback to system monospace (SF Mono, Menlo, Consolas, DejaVu Sans Mono). No remote webfonts; optional local subset embedding.
+- Keyboard navigation (roving tabindex), ARIA roles; zero‑JS mode degrades gracefully
+- Tables: virtualized or paginated for >10k rows; client search and facet chips
+- Performance budget: TTI < 200ms on 2019 MBP for 5k entries; inlining critical CSS
 
 Proposed near-term reorganizations:
 - Create `lib/cmd/` to host all subcommands; update sources accordingly
@@ -239,6 +259,7 @@ Proposed near-term reorganizations:
 - CLI: `finfo html --dashboard PATH…` (static export) and `finfo catalog --init DIR`, `finfo catalog --update DIR`.
 - Artifacts: `dist/index.html`, `dist/assets/*`, `catalog.sqlite|catalog.jsonl`.
 - Acceptance: works offline, no trackers; incremental updates; themable.
+ - Tech notes: prefer vanilla + htmx/alpine; optional Tabulator for tables; Pico.css/Tailwind‑lite token layer; no heavy frameworks
 
 12) Adaptive User Interface (AUI)
 - Personalizes surfaces: prioritizes frequently used actions, remembers preferred flags, adjusts section density; privacy‑first, on‑device only.
@@ -360,6 +381,9 @@ Proposed near-term reorganizations:
   - `suggest`: `{ items:[{cmd, reason, score}] }`
   - `nocode`: `{ flows:[{name, steps[]}], exported_to }`
   - `collab_exec`: `{ session_id, approvals:[{user, time}], status }`
+ - `dashboard`: `{ version, theme, facets:[{name, values[]}], dataset_url|inline }`
+ - `dashboard`: `{ version, theme, facets:[{name, values[]}], dataset_url|inline }`
+ - `fonts`: `{ installed:[{family, style, path}], monospace_match, nerd_available, current_terminal }`
 
 ## Testing
 - Golden outputs for porcelain/json for: text file, archive, dir (small), Mach-O, symlink
@@ -383,7 +407,9 @@ Proposed near-term reorganizations:
 14) Phase 1.14: Add docs/ with JSON schema and examples; tests/ with golden outputs [IN PROGRESS]
 15) Phase 1.15: KEYS panel and shortcut actions (`--keys`, `--keys-timeout`, `--no-keys`; auto in `--long`) [DONE]
 16) Phase 1.16: Expanded shortcuts (`--edit`, `--copy-*`, `--chmod`) with colored notices [DONE]
-17) Phase 5 scaffolding: add module stubs `_risk.zsh`, `_summarize.zsh`, `_anomaly.zsh`, `_tui.zsh`, `_dashboard.zsh`, `_index.zsh`, `_dedupe.zsh`, `_attest.zsh`, `_sandbox.zsh`, `_trace.zsh`, `_redact.zsh`, `_cause.zsh`, `_lineage.zsh`, `_sentinel.zsh`, `_packplan.zsh`, `_policy.zsh`, `_aui.zsh`, `_learn.zsh`, `_gamify.zsh`, `_voice.zsh`, `_collab.zsh`, `_nlc.zsh`, `_suggest.zsh`, `_nocode.zsh` (lazy‑loaded) and extend JSON schema [PLANNED]
+17) Phase 1.17: HTML dashboard alpha — static assets skeleton, schema, and exporter [NEXT]
+18) Phase 1.18: Fonts module `_fonts.zsh` — cross‑platform detection and CLI (`finfo fonts`) [NEXT]
+19) Phase 5 scaffolding: add module stubs `_risk.zsh`, `_summarize.zsh`, `_anomaly.zsh`, `_tui.zsh`, `_dashboard.zsh`, `_index.zsh`, `_dedupe.zsh`, `_attest.zsh`, `_sandbox.zsh`, `_trace.zsh`, `_redact.zsh`, `_cause.zsh`, `_lineage.zsh`, `_sentinel.zsh`, `_packplan.zsh`, `_policy.zsh`, `_aui.zsh`, `_learn.zsh`, `_gamify.zsh`, `_voice.zsh`, `_collab.zsh`, `_nlc.zsh`, `_suggest.zsh`, `_nocode.zsh`, `_fonts.zsh` (lazy‑loaded) and extend JSON schema [PLANNED]
 
 ## Risks and mitigations
 - Performance on large dirs: cap counts, show “approximate” beyond N entries
