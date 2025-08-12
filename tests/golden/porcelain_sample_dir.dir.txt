@@ -1,0 +1,7 @@
+hardlinks	3
+mime	inode/directory; charset=binary
+name	sample_dir
+size_bytes	96
+size_human	96B
+type	directory
+uttype	public.folder

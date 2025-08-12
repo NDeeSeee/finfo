@@ -1,0 +1,31 @@
+{
+  "name": "sample_link",
+  "path": {
+    "abs": "/Users/pavb5f/Documents/github/finfo/tests/fixtures/sample.txt",
+    "rel": "/Users/pavb5f/Documents/github/finfo/tests/fixtures/sample_link"
+  },
+  "is_dir": false,
+  "type": {
+    "description": "ASCII text",
+    "is_text": "text",
+    "charset": "us-ascii"
+  },
+  "size": {
+    "bytes": 10,
+    "human": "10B"
+  },
+  "lines": 1,
+  "perms": {
+    "symbolic": "lrwxr-xr-x",
+    "octal": "120755",
+    "explain": ""
+  },
+  "about": "",
+  "filetype": {
+    "pages": null,
+    "headings": null,
+    "columns": null,
+    "delimiter": "",
+    "image_dims": ""
+  }
+}

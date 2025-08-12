@@ -1,0 +1,31 @@
+{
+  "name": "sample.txt",
+  "path": {
+    "abs": "/Users/pavb5f/Documents/github/finfo/tests/fixtures/sample.txt",
+    "rel": "/Users/pavb5f/Documents/github/finfo/tests/fixtures/sample.txt"
+  },
+  "is_dir": false,
+  "type": {
+    "description": "ASCII text",
+    "is_text": "text",
+    "charset": "us-ascii"
+  },
+  "size": {
+    "bytes": 12,
+    "human": "12B"
+  },
+  "lines": 1,
+  "perms": {
+    "symbolic": "-rw-r--r--",
+    "octal": "100644",
+    "explain": ""
+  },
+  "about": "",
+  "filetype": {
+    "pages": null,
+    "headings": null,
+    "columns": null,
+    "delimiter": "",
+    "image_dims": ""
+  }
+}

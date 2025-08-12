@@ -1,0 +1,7 @@
+lines	1
+mime	text/plain; charset=us-ascii
+name	sample.txt
+size_bytes	12
+size_human	12B
+type	ASCII text
+uttype	public.plain-text

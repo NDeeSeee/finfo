@@ -1,0 +1,8 @@
+lines	1
+mime	text/plain; charset=us-ascii
+name	sample_link
+size_bytes	10
+size_human	10B
+symlink	sample.txt
+type	ASCII text
+uttype	public.plain-text

@@ -167,6 +167,9 @@ finfo() {
   # Note: zparseopts already removes parsed options from $@, leaving only positional args.
   # Do not shift here, or we will drop the first non-option argument (the target path).
 
+  # Respect conventional end-of-options marker
+  if [[ "$1" == "--" ]]; then shift; fi
+
   if (( show_help )); then
     echo "Usage: finfo [--brief|--long|--porcelain|--json|--html] [--width N] [--hash sha256|blake3] [--unit bytes|iec|si] [--icons|--no-icons] [--git|--no-git] [--monitor] [--duplicates] [--keys|--no-keys] [--keys-timeout N] [--theme THEME] PATH..."
     _cleanup; return 0
@@ -715,3 +718,8 @@ finfo() {
   multi_mode=0
   _cleanup; return 0
 }
+
+# Allow both sourcing and direct execution
+if [[ "${(%):-%N}" == "$0" ]]; then
+  finfo "$@"
+fi
