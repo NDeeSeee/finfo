@@ -178,6 +178,7 @@ type finfoJSON struct {
 
 type keymap struct {
     Up, Down, Enter, Back, Quit, ToggleLong, TogglePreview, Actions, Copy, Open, Reveal, Chmod, ClearQ, Refresh, Help, Filter, Select, SelectAll, ClearSel, Undo, JobLog key.Binding
+    PagePrev, PageNext, Jump1, Jump2, Jump3, Jump4, Jump5, Jump6, JumpTop, JumpBottom key.Binding
 }
 
 // Implement help.KeyMap
@@ -219,6 +220,16 @@ func defaultKeymap() keymap {
         ClearSel:   key.NewBinding(key.WithKeys("V"), key.WithHelp("V", "clear selection")),
         Undo:       key.NewBinding(key.WithKeys("U"), key.WithHelp("U", "undo last")),
         JobLog:     key.NewBinding(key.WithKeys("J"), key.WithHelp("J", "job log")),
+        PagePrev:   key.NewBinding(key.WithKeys("["), key.WithHelp("[", "prev page")),
+        PageNext:   key.NewBinding(key.WithKeys("]"), key.WithHelp("]", "next page")),
+        Jump1:      key.NewBinding(key.WithKeys("1"), key.WithHelp("1", "Hdr")),
+        Jump2:      key.NewBinding(key.WithKeys("2"), key.WithHelp("2", "Ess")),
+        Jump3:      key.NewBinding(key.WithKeys("3"), key.WithHelp("3", "Time")),
+        Jump4:      key.NewBinding(key.WithKeys("4"), key.WithHelp("4", "Paths")),
+        Jump5:      key.NewBinding(key.WithKeys("5"), key.WithHelp("5", "Sec")),
+        Jump6:      key.NewBinding(key.WithKeys("6"), key.WithHelp("6", "Acts")),
+        JumpTop:    key.NewBinding(key.WithKeys("g"), key.WithHelp("g", "top")),
+        JumpBottom: key.NewBinding(key.WithKeys("$"), key.WithHelp("$", "bottom")),
 	}
 }
 
@@ -756,6 +767,15 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         case key.Matches(msg, m.keys.TogglePreview):
             m.showPreview = !m.showPreview
             return m, m.loadPreview()
+        // Single-file preview navigation shortcuts
+        case key.Matches(msg, m.keys.PagePrev):
+            if m.singleFile { m.preview.LineUp(10); return m, nil }
+        case key.Matches(msg, m.keys.PageNext):
+            if m.singleFile { m.preview.LineDown(10); return m, nil }
+        case key.Matches(msg, m.keys.JumpTop):
+            if m.singleFile { m.preview.GotoTop(); return m, nil }
+        case key.Matches(msg, m.keys.JumpBottom):
+            if m.singleFile { m.preview.GotoBottom(); return m, nil }
 		case key.Matches(msg, m.keys.Copy):
             targets := m.targetItems()
             if len(targets) == 1 { copyPath(targets[0].path) } else {
