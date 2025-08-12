@@ -12,10 +12,8 @@ source ./lib/_summary.zsh
 source ./lib/_checksum.zsh
 source ./lib/_monitor.zsh
 source ./lib/_html.zsh
-if [[ -f ./lib/cmd/cmd_diff.zsh ]]; then source ./lib/cmd/cmd_diff.zsh; else source ./lib/cmd_diff.zsh 2>/dev/null || true; fi
-if [[ -f ./lib/cmd/cmd_watch.zsh ]]; then source ./lib/cmd/cmd_watch.zsh; else source ./lib/cmd_watch.zsh 2>/dev/null || true; fi
-if [[ -f ./lib/cmd/cmd_chmod.zsh ]]; then source ./lib/cmd/cmd_chmod.zsh; else source ./lib/cmd_chmod.zsh 2>/dev/null || true; fi
-if [[ -f ./lib/cmd/cmd_duplicates.zsh ]]; then source ./lib/cmd/cmd_duplicates.zsh; else source ./lib/cmd_duplicates.zsh 2>/dev/null || true; fi
+source ./lib/_cmd_loader.zsh
+_load_cmds
 source ./lib/_git.zsh
 source ./lib/_config.zsh
 
@@ -530,8 +528,8 @@ finfo() {
     if (( opt_compact )); then
     # Clear screen part: reprint minimal lines only
     printf "%s%s %s%s\n" "$BOLD$BLUE" "$glyph" "$name" "$RESET"
-    printf "  %s•%s %s%s%s  %s%s%s  %s%s%s  %s%s%s\n" \
-      "$LABEL" "$RESET" "$VALUE" "${file_desc}" "$RESET" \
+    printf "  %s%s%s %s%s%s  %s%s%s  %s%s%s  %s%s%s\n" \
+      "$LABEL" "$BULLET" "$RESET" "$VALUE" "${file_desc}" "$RESET" \
       "$NUM" "$size_human" "$RESET" \
       "$VALUE" "$perms_sym" "$RESET" \
       "$VALUE" "${modified_at:-–}" "$RESET"
