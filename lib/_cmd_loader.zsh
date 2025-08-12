@@ -8,11 +8,5 @@ _load_cmds() {
     for f in "$d"/*.zsh; do
       [[ -f "$f" ]] && source "$f"
     done
-  else
-    # Legacy fallback (pre-reorg)
-    source "$root/lib/cmd_diff.zsh" 2>/dev/null || true
-    source "$root/lib/cmd_watch.zsh" 2>/dev/null || true
-    source "$root/lib/cmd_chmod.zsh" 2>/dev/null || true
-    source "$root/lib/cmd_duplicates.zsh" 2>/dev/null || true
   fi
 }
