@@ -15,4 +15,4 @@ typeset -gA _NF_KEY=(
 )
 _icon() { local var="i_${_NF_KEY[$1]:-fa_file_o}"; print -rn -- "${(P)var}"; }
 
-_has_nerd() { [[ -n ${i_oct_file_directory:-} ]] || command -v lsd >/dev/null 2>&1; }
+_has_nerd() { [[ "${FINFONERD:-1}" == "1" && -n ${i_oct_file_directory:-} ]]; }
