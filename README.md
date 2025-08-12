@@ -117,6 +117,19 @@ open dist/index.html # macOS
 
 Choose a theme with `--theme NAME` or `FINFOTHEME=NAME`. Available: `default`, `nord`, `dracula`, `solarized`, `synesthesia` (vibrant).
 
+Header layout controls:
+
+```bash
+# Left-aligned (default)
+export FINFO_HEADER_STYLE=left
+# Centered chips
+export FINFO_HEADER_STYLE=center
+# Optional thin rules under headers
+export FINFO_RULE=1
+# Clamp header width (default 100)
+export FINFO_SECTION_WIDTH=96
+```
+
 
 - Pure zsh compact table:
 

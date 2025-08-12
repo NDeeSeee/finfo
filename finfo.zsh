@@ -542,7 +542,9 @@ finfo() {
         case "$verdict" in
           safe) vr_col="$GREEN";; caution) vr_col="$YELLOW";; unsafe) vr_col="$RED";;
         esac
-        _kv "Verdict" "${vr_col}${verdict}${RESET} ${DIM}(gatekeeper:${gk_assess} codesign:${cs_status}${cs_team:+ team:${cs_team}}${nota_stapled:+ notarization:${nota_stapled}})${RESET}"
+        local chip
+        chip="${vr_col}[$verdict]${RESET}"
+        _kv "Verdict" "${chip} ${DIM}(gatekeeper:${gk_assess} codesign:${cs_status}${cs_team:+ team:${cs_team}}${nota_stapled:+ notarization:${nota_stapled}})${RESET}"
       fi
       if [[ $OSTYPE == darwin* ]]; then
         local -a xas; xas=()
