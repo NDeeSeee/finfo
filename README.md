@@ -33,7 +33,7 @@ finfo [--brief|--long|--porcelain|--json|--html] [--width N] [--hash sha256|blak
       [--unit bytes|iec|si] [--icons|--no-icons] [--git|--no-git] [--monitor] [--duplicates] \
       [--keys|--no-keys] [--keys-timeout N] [--copy-path|-C] [--copy-rel] [--copy-dir] \
       [--copy-hash ALGO] [--open|-O] [--open-with APP] [--reveal|-E] [--edit APP|-e APP] \
-      [--chmod OCTAL] [--clear-quarantine|-Q] [--risk|-S] PATH...
+      [--chmod OCTAL] [--clear-quarantine|-Q] [--risk|-S] [--qr-hash ALGO] PATH...
 
 finfo diff A B             # metadata diff (porcelain-based)
 finfo chmod PATH           # interactive chmod helper (arrows/space/s/q)
@@ -170,6 +170,9 @@ finfo -C README.md                  # copy absolute path
 finfo --open-with "Visual Studio Code" README.md
 finfo --copy-hash sha256 README.md  # copy checksum
 finfo --chmod 644 README.md         # change perms and confirm
+
+# QR for checksum (requires `qrencode` and a TTY)
+finfo --hash sha256 --qr-hash sha256 README.md
 
 # Dashboard
 finfo html --dashboard . && open dist/index.html

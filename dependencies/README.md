@@ -66,12 +66,21 @@ Install these to unlock richer output, nicer UX, or developer convenience. finfo
 - JSON processor: `jq`
   - macOS: `brew install jq`
   - Debian/Ubuntu: `sudo apt-get install -y jq`
+- Terminal QR codes (optional): `qrencode`
+  - macOS: `brew install qrencode`
+  - Debian/Ubuntu: `sudo apt-get install -y qrencode`
 - Fast file search (preferred): `fd`
   - macOS: `brew install fd`
   - Debian/Ubuntu: `sudo apt-get install -y fd-find` (alias: `alias fd=fdfind`)
 - Fast code/text search: `ripgrep` (`rg`)
   - macOS: `brew install ripgrep`
   - Debian/Ubuntu: `sudo apt-get install -y ripgrep`
+- Terminal QR encoder (optional): `qrencode`
+  - macOS: `brew install qrencode`
+  - Debian/Ubuntu: `sudo apt-get install -y qrencode`
+- Modern ls replacement (optional): `eza` or `exa`
+  - macOS: `brew install eza` (or `exa`)
+  - Debian/Ubuntu: `sudo apt-get install -y eza` (or `exa` from repos)
 - Visual scripting aids (optional): `gum`
   - macOS: `brew install gum`
   - Debian/Ubuntu: `sudo apt-get install -y gum` (or from project releases)
