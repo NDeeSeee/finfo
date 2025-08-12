@@ -22,6 +22,23 @@ mkdir -p "$FX/sample_dir"
 print -r -- "inner" > "$FX/sample_dir/inner.txt"
 ln -sf "sample.txt" "$FX/sample_link"
 
+# Markdown fixture
+cat > "$FX/sample.md" <<'MD'
+# Title
+
+## Section 1
+
+### Subsection
+MD
+
+# Zip fixture (deterministic)
+rm -f "$FX/sample_zip.zip"
+(cd "$FX" && zip -q -X sample_zip.zip sample.txt sample.md >/dev/null 2>&1 || true)
+
+# Tiny PNG (1x1 transparent) via base64 (deterministic)
+PNG_B64="iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR4nGNgYAAAAAMAASsJTYQAAAAASUVORK5CYII="
+echo "$PNG_B64" | base64 --decode > "$FX/sample.png" 2>/dev/null || echo "$PNG_B64" | base64 -D > "$FX/sample.png" 2>/dev/null || true
+
 # Helper to capture and normalize porcelain
 run_porc() {
   local target="$1"; shift
@@ -41,6 +58,8 @@ run_porc "$FX/sample_link" > "$TMP/porcelain_symlink.txt"
 run_json "$FX/sample.txt" > "$TMP/json_sample.txt.json"
 run_json "$FX/sample_dir" > "$TMP/json_sample_dir.dir.json"
 run_json "$FX/sample_link" > "$TMP/json_symlink.json"
+run_json "$FX/sample.md" > "$TMP/json_sample_md.json"
+run_json "$FX/sample.png" > "$TMP/json_sample_png.json"
 
 # Monitor smoke: create a temp growing file and ensure Rate appears
 monfile="$TMP/mon_grow.txt"
@@ -53,8 +72,12 @@ print -n -- "a" > "$monfile"
 "$FINFO" --monitor --unit bytes -- "$monfile" > "$TMP/monitor_pretty.txt" || true
 grep -q -- "Rate" "$TMP/monitor_pretty.txt" || { echo "monitor missing Rate" >&2; ok=0; }
 
+# Zip pretty smoke: should show Archive stats
+"$FINFO" --unit bytes -- "$FX/sample_zip.zip" > "$TMP/zip_pretty.txt" || true
+grep -q -- "Archive" "$TMP/zip_pretty.txt" || { echo "zip missing Archive" >&2; ok=0; }
+
 # If golden missing or REGEN=1 or file empty, (re)initialize
-for f in porcelain_sample.txt.txt porcelain_sample_dir.dir.txt porcelain_symlink.txt json_sample.txt.json json_sample_dir.dir.json json_symlink.json; do
+for f in porcelain_sample.txt.txt porcelain_sample_dir.dir.txt porcelain_symlink.txt json_sample.txt.json json_sample_dir.dir.json json_symlink.json json_sample_md.json json_sample_png.json; do
   if [[ ! -f "$GOLD/$f" || "${REGEN:-0}" == 1 || ! -s "$GOLD/$f" ]]; then
     cp "$TMP/$f" "$GOLD/$f"
   fi
@@ -62,7 +85,7 @@ done
 
 # Diff against golden
 ok=1
-for f in porcelain_sample.txt.txt porcelain_sample_dir.dir.txt porcelain_symlink.txt json_sample.txt.json json_sample_dir.dir.json json_symlink.json; do
+for f in porcelain_sample.txt.txt porcelain_sample_dir.dir.txt porcelain_symlink.txt json_sample.txt.json json_sample_dir.dir.json json_symlink.json json_sample_md.json json_sample_png.json; do
   if ! diff -u --label "golden/$f" --label "current/$f" "$GOLD/$f" "$TMP/$f"; then
     ok=0
   fi

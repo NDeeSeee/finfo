@@ -1,0 +1,21 @@
+name: ci
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+
+jobs:
+  test-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Homebrew and tools
+        run: |
+          brew update
+          brew install jq unzip || true
+      - name: Run tests
+        shell: bash
+        run: |
+          chmod +x tests/run.zsh tests/normalize_*.zsh finfo.zsh
+          ./tests/run.zsh

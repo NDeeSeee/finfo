@@ -3,17 +3,17 @@ fixtures · directory · —
   [HEADER] [T]
   [35mFile:        [37mfixtures – directory
   [ESSENTIALS] [T]
-  [35mSize:        — (160 B)
+  [35mSize:        — (256 B)
   [35mType:        inode/directory; charset=binary | public.folder
   [35mOwner:       pavb5f:staff | drwxr-xr-x (40755)
   [35mAccess:      read-write
-  [35mEntries:     1 dirs, 1 files
+  [35mEntries:     1 dirs, 4 files
   [35mTop dir:     sample_dir (1 entries)
-  [35mGit:         master (clean)
+  [35mGit:         master (untracked)
   [TIMELINE] [C]
-  [35mCreated:     Aug 12 2025 02:44 (35m ago)
-  [35mModified:    Aug 12 2025 03:20 (0m ago)
-  [35mAccessed:    Aug 12 2025 03:20 (0m ago)
+  [35mCreated:     Aug 12 2025 02:44 (48m ago)
+  [35mModified:    Aug 12 2025 03:32 (0m ago)
+  [35mAccessed:    Aug 12 2025 03:33 (0m ago)
   [PATHS] [L]
   [35mRel:         [36m</> [36m/Users/pavb5f/Documents/github/finfo/tests/fixtures
   [35mAbs:         [36m</> [36m/Users/pavb5f/Documents/github/finfo/tests/fixtures
@@ -28,4 +28,10 @@ _color_out=$'\C-[[35m'
   * open '/Users/pavb5f/Documents/github/finfo/tests/fixtures'
   [35m[i] Tip:         use 'll' for detailed listing
 s=940a68104d3b690442453f4be394b0a14721a174127d84c1c2f834b7ad05d684
+s=a140d451334e76d0e121337e34eb8e305a735664b53d0e05d812600399d169bd
+s=81fb8a51f32c9a7710255c714fcc85675f307fc9c6dac169bee1ff70e4f1930b
+s=d014edc031656dd8a5cb7740ed900d658ba3108ff6fcb977fc3ff4f758c10f0b
+cnt=1
+cnt=1
+cnt=1
 cnt=1

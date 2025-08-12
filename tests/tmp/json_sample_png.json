@@ -1,0 +1,31 @@
+{
+  "name": "sample.png",
+  "path": {
+    "abs": "/Users/pavb5f/Documents/github/finfo/tests/fixtures/sample.png",
+    "rel": "/Users/pavb5f/Documents/github/finfo/tests/fixtures/sample.png"
+  },
+  "is_dir": false,
+  "type": {
+    "description": "PNG image data, 1 x 1, 8-bit gray+alpha, non-interlaced",
+    "is_text": "binary",
+    "charset": ""
+  },
+  "size": {
+    "bytes": 68,
+    "human": "68B"
+  },
+  "lines": null,
+  "perms": {
+    "symbolic": "-rw-r--r--",
+    "octal": "100644",
+    "explain": ""
+  },
+  "about": "",
+  "filetype": {
+    "pages": null,
+    "headings": null,
+    "columns": null,
+    "delimiter": "",
+    "image_dims": ""
+  }
+}
