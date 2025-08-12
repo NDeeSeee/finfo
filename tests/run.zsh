@@ -42,6 +42,17 @@ run_json "$FX/sample.txt" > "$TMP/json_sample.txt.json"
 run_json "$FX/sample_dir" > "$TMP/json_sample_dir.dir.json"
 run_json "$FX/sample_link" > "$TMP/json_symlink.json"
 
+# Monitor smoke: create a temp growing file and ensure Rate appears
+monfile="$TMP/mon_grow.txt"
+print -n -- "a" > "$monfile"
+(
+  # background write growth
+  sleep 0.2
+  print -n -- "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" >> "$monfile"
+) &
+"$FINFO" --monitor --unit bytes -- "$monfile" > "$TMP/monitor_pretty.txt" || true
+grep -q -- "Rate" "$TMP/monitor_pretty.txt" || { echo "monitor missing Rate" >&2; ok=0; }
+
 # If golden missing or REGEN=1 or file empty, (re)initialize
 for f in porcelain_sample.txt.txt porcelain_sample_dir.dir.txt porcelain_symlink.txt json_sample.txt.json json_sample_dir.dir.json json_symlink.json; do
   if [[ ! -f "$GOLD/$f" || "${REGEN:-0}" == 1 || ! -s "$GOLD/$f" ]]; then
@@ -62,6 +73,8 @@ if ! "$FINFO" --help | grep -q -- "--keys-timeout"; then
   echo "--help missing --keys-timeout" >&2
   ok=0
 fi
+# Duplicates command smoke: should run and not error
+"$FINFO" --duplicates -- "$FX" > "$TMP/dups.txt" || true
 
 if (( ok )); then
   print -r -- "All tests passed"
