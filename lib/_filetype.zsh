@@ -59,3 +59,29 @@ _compute_filetype_stats() {
     if [[ -n "$extd" ]]; then about_str="$extd"; else about_str="${file_desc%%,*}"; fi
   fi
 }
+
+# Infer simple description by extension (moved from finfo.zsh)
+_describe_ext() {
+  local name_lc="$1"; name_lc="${name_lc:l}"
+  case "$name_lc" in
+    *.py) echo "Python source" ;;
+    *.ipynb) echo "Jupyter notebook" ;;
+    *.js) echo "JavaScript source" ;;
+    *.ts) echo "TypeScript source" ;;
+    *.tsx|*.jsx) echo "React component" ;;
+    *.sh|*.bash|*.zsh) echo "Shell script" ;;
+    *.md|*.markdown) echo "Markdown document" ;;
+    *.json) echo "JSON data" ;;
+    *.yaml|*.yml) echo "YAML config" ;;
+    *.toml) echo "TOML config" ;;
+    *.ini|*.conf) echo "Configuration file" ;;
+    *.sql) echo "SQL script" ;;
+    Dockerfile|*dockerfile) echo "Docker build recipe" ;;
+    Makefile|*.mk) echo "Make build rules" ;;
+    *.csv|*.tsv) echo "Delimited text data" ;;
+    *.r|*.R) echo "R script" ;;
+    *.pdf) echo "PDF document" ;;
+    *.zip|*.tar|*.tgz|*.tar.gz|*.gz|*.bz2|*.xz|*.7z) echo "Archive/compressed" ;;
+    *) echo "" ;;
+  esac
+}

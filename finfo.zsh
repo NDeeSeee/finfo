@@ -16,85 +16,11 @@ source ./lib/cmd_duplicates.zsh
 source ./lib/_git.zsh
 source ./lib/_config.zsh
 
-# Format seconds as human-readable age (largest 2 units) + " ago"
-_fmt_ago() {
-  local secs=${1:-0}
-  (( secs < 0 )) && secs=0
-  local y=$(( secs/31557600 ))
-  local rem=$(( secs%31557600 ))
-  local mo=$(( rem/2629800 ))
-  rem=$(( rem%2629800 ))
-  local d=$(( rem/86400 ))
-  rem=$(( rem%86400 ))
-  local h=$(( rem/3600 ))
-  rem=$(( rem%3600 ))
-  local m=$(( rem/60 ))
-  typeset -a parts; parts=()
-  if (( y>0 )); then parts+=("${y}y"); fi
-  if (( mo>0 && ${#parts[@]}<2 )); then parts+=("${mo}mo"); fi
-  if (( d>0 && ${#parts[@]}<2 )); then parts+=("${d}d"); fi
-  if (( h>0 && ${#parts[@]}<2 )); then parts+=("${h}h"); fi
-  if (( m>0 && ${#parts[@]}<2 )); then parts+=("${m}m"); fi
-  if (( ${#parts[@]} == 0 )); then parts+=("0m"); fi
-  local joined="${(j: :)parts}"
-  print -r -- "${joined} ago"
-}
-
 source ./lib/_size.zsh
 
-# Theme application
-_apply_theme() {
-  local theme="${1:-default}"
-  # Defaults
-  THEME_LABEL="$MAGENTA"; THEME_VALUE="$WHITE"; THEME_PATH="$CYAN"; THEME_NUM="$YELLOW"; THEME_HDR_BG_IDX=24
-  if command -v tput >/dev/null 2>&1; then
-    case "$theme" in
-      nord|Nord)
-        THEME_LABEL=$(_color256 75) # light blue
-        THEME_VALUE=$(_color256 255)
-        THEME_PATH=$(_color256 81)
-        THEME_NUM=$(_color256 186)
-        THEME_HDR_BG_IDX=24
-        ;;
-      dracula|Dracula)
-        THEME_LABEL=$(_color256 201)
-        THEME_VALUE=$(_color256 255)
-        THEME_PATH=$(_color256 45)
-        THEME_NUM=$(_color256 221)
-        THEME_HDR_BG_IDX=53
-        ;;
-      solarized|Solarized)
-        THEME_LABEL=$(_color256 136)
-        THEME_VALUE=$(_color256 250)
-        THEME_PATH=$(_color256 33)
-        THEME_NUM=$(_color256 166)
-        THEME_HDR_BG_IDX=37
-        ;;
-      *) : ;;
-    esac
-  fi
-}
+# Theme application provided by lib/_colors.zsh
 
-# Section header (btop-like tag)
-_section() {
-  local title="$1"; local key="$2"; local cols=$(_term_cols)
-  local left="├─"; local right=""
-  if _has_nerd; then
-    local tag_l="" tag_r=""; local bg=$(_bg256 ${THEME_HDR_BG_IDX:-24}) fg=$(_color256 15)
-    local ic; ic=$(_sec_icon "$key")
-    printf "  %s%s%s %s %s %s%s" "$bg" "$fg" "$tag_l" "$ic" "$title" "$tag_r" "$RESET"
-    local pad=$(( cols - ${#title} - 8 )); (( pad < 1 )) && pad=1
-    printf "%${pad}s\n" ""
-  else
-    local ic; ic=$(_sec_icon "$key")
-    printf "  %s[%s] %s%s\n" "$BOLD$BLUE" "$title" "$ic" "$RESET"
-  fi
-  if (( ${OPT_BOXED:-0} )); then
-    local rule=""; local i=0; local width=$(( cols - 2 ));
-    while (( i < width )); do rule+="─"; (( i++ )); done
-    printf "  %s%s%s\n" "$DIM" "$rule" "$RESET"
-  fi
-}
+# Section rendering provided by lib/_format.zsh
 
 # Small header logo
 _logo() {
@@ -107,83 +33,13 @@ _logo() {
   fi
 }
 
-# Key/Value line with aligned label
-_kv() {
-  local label="$1"; shift; local value="$*"; local LABEL="$MAGENTA"
-  local W=12; printf "  %s%-*s %s\n" "$LABEL" $W "$label:" "$value"
-}
-
-# Key/Value specialized for wide paths with middle-ellipsis
-_kv_path() {
-  local label="$1"; shift; local p="$*"; local cols=$(_term_cols)
-  local prefix_len=$(( 2 + 1 + 1 + 10 + 1 ))  # approx spaces + branch + label width
-  local max=$(( cols - prefix_len )); (( max < 20 )) && max=20
-  local disp=$(_ellipsize_middle "$p" $max)
-  _kv "$label" "$disp"
-}
-
-# KV with glyph
-_kvx() {
-  local _unused_key="$1"; shift; local label="$1"; shift; local value="$*"
-  _kv "$label" "$value"
-}
+# Key/value helpers provided by lib/_format.zsh
 
 # Command category glyph and color helpers moved to lib/_sections.zsh
 
-# Human-readable size
-_hr_size() {
-  # Back-compat simple formatter (IEC thresholds, compact units)
-  local bytes="$1"; [[ -z "$bytes" || "$bytes" != <-> ]] && bytes=0
-  if (( bytes >= 1073741824 )); then print -r -- "$((bytes/1073741824))G"; return
-  elif (( bytes >= 1048576 )); then print -r -- "$((bytes/1048576))M"; return
-  elif (( bytes >= 1024 )); then print -r -- "$((bytes/1024))K"; return
-  else print -r -- "${bytes}B"; fi
-}
+# Size formatters provided by lib/_size.zsh
 
-# Human-readable size with unit scheme
-_hr_size_fmt() {
-  local bytes="$1"; local scheme="${2:-${FINFO_UNIT:-iec}}"; [[ -z "$bytes" || "$bytes" != <-> ]] && bytes=0
-  case "$scheme" in
-    bytes|byte)
-      print -r -- "${bytes} B"; return ;;
-    si)
-      if (( bytes >= 1000000000 )); then printf '%.0f GB\n' $((bytes/1000000000));
-      elif (( bytes >= 1000000 )); then printf '%.0f MB\n' $((bytes/1000000));
-      elif (( bytes >= 1000 )); then printf '%.0f kB\n' $((bytes/1000));
-      else print -r -- "${bytes} B"; fi; return ;;
-    iec|*)
-      if (( bytes >= 1073741824 )); then printf '%.0f GiB\n' $((bytes/1073741824));
-      elif (( bytes >= 1048576 )); then printf '%.0f MiB\n' $((bytes/1048576));
-      elif (( bytes >= 1024 )); then printf '%.0f KiB\n' $((bytes/1024));
-      else print -r -- "${bytes} B"; fi; return ;;
-  esac
-}
-
-# Infer simple description by extension
-_describe_ext() {
-  local name_lc="$1"; name_lc="${name_lc:l}"
-  case "$name_lc" in
-    *.py) echo "Python source" ;;
-    *.ipynb) echo "Jupyter notebook" ;;
-    *.js) echo "JavaScript source" ;;
-    *.ts) echo "TypeScript source" ;;
-    *.tsx|*.jsx) echo "React component" ;;
-    *.sh|*.bash|*.zsh) echo "Shell script" ;;
-    *.md|*.markdown) echo "Markdown document" ;;
-    *.json) echo "JSON data" ;;
-    *.yaml|*.yml) echo "YAML config" ;;
-    *.toml) echo "TOML config" ;;
-    *.ini|*.conf) echo "Configuration file" ;;
-    *.sql) echo "SQL script" ;;
-    Dockerfile|*dockerfile) echo "Docker build recipe" ;;
-    Makefile|*.mk) echo "Make build rules" ;;
-    *.csv|*.tsv) echo "Delimited text data" ;;
-    *.r|*.R) echo "R script" ;;
-    *.pdf) echo "PDF document" ;;
-    *.zip|*.tar|*.tgz|*.tar.gz|*.gz|*.bz2|*.xz|*.7z) echo "Archive/compressed" ;;
-    *) echo "" ;;
-  esac
-}
+# Extension description provided by lib/_filetype.zsh
 
 # Lint/format/spell suggestions
 ## Moved hint and action helpers to lib/_actions.zsh
@@ -207,6 +63,7 @@ _perm_explain() {
 
 # Main entry
 finfo() {
+  local html_output=0
   # Silence xtrace within finfo for clean output, restore afterwards
   local _xtrace_was_on=0
   if [[ -o xtrace ]]; then _xtrace_was_on=1; set +x; fi
@@ -259,13 +116,11 @@ finfo() {
   # Subcommand: chmod PATH → interactive chmod helper (arrow-based)
   if [[ "$1" == chmod ]]; then shift; finfo_cmd_chmod "$1"; _cleanup; return $?; fi
 
-  typeset -a _o_n _o_J _o_Y _o_N _o_q _o_c _o_v _o_G _o_b _o_H _o_k _o_s _o_B _o_L _o_P _o_W _o_Z _o_R _o_r _o_m _o_d
+  typeset -a _o_n _o_J _o_q _o_c _o_v _o_G _o_b _o_H _o_k _o_s _o_B _o_L _o_P _o_W _o_Z _o_R _o_r _o_m _o_d
   typeset -a _o_U
-  zparseopts -D -E n=_o_n J=_o_J Y=_o_Y N=_o_N q=_o_q c=_o_c v=_o_v G=_o_G b=_o_b H=_o_H k=_o_k s=_o_s B=_o_B L=_o_L P=_o_P W:=_o_W Z:=_o_Z U:=_o_U R=_o_R r=_o_r m=_o_m d=_o_d
+  zparseopts -D -E n=_o_n J=_o_J q=_o_q c=_o_c v=_o_v G=_o_G b=_o_b H=_o_H k=_o_k s=_o_s B=_o_B L=_o_L P=_o_P W:=_o_W Z:=_o_Z U:=_o_U R=_o_R r=_o_r m=_o_m d=_o_d
   local opt_no_color=$(( ${#_o_n} > 0 ))
   local opt_json=$(( ${#_o_J} > 0 ))
-  local opt_yaml=$(( ${#_o_Y} > 0 ))
-  local opt_ndjson=$(( ${#_o_N} > 0 ))
   local opt_quiet=$(( ${#_o_q} > 0 ))
   local opt_compact=$(( ${#_o_c} > 0 ))
   local opt_verbose=$(( ${#_o_v} > 0 ))
@@ -294,7 +149,7 @@ finfo() {
   # Do not shift here, or we will drop the first non-option argument (the target path).
 
   if (( show_help )); then
-    echo "Usage: finfo [--brief|--long|--porcelain|--json] [--width N] [--hash sha256|blake3] [--unit bytes|iec|si] [--icons|--no-icons] [--git|--no-git] [--monitor] [--duplicates] PATH..."
+    echo "Usage: finfo [--brief|--long|--porcelain|--json|--html] [--width N] [--hash sha256|blake3] [--unit bytes|iec|si] [--icons|--no-icons] [--git|--no-git] [--monitor] [--duplicates] [--theme THEME] PATH..."
     _cleanup; return 0
   fi
 
@@ -344,30 +199,23 @@ finfo() {
     else glyph=$(_icon file); fi
   fi
 
-  # stat block
-  local perms_sym perms_oct size_bytes created_at modified_at created_epoch modified_epoch link_count
+  # stat block (batched)
+  local perms_sym perms_oct size_bytes created_at modified_at created_epoch modified_epoch link_count owner_group accessed_at accessed_epoch posix_flags
   # quick stats holders
   local ft_pages ft_headings ft_columns ft_delim ft_image_dims; ft_pages=""; ft_headings=""; ft_columns=""; ft_delim=""; ft_image_dims=""
     local path_arg="$target"; [[ "${path_arg}" == -* ]] && path_arg="./${path_arg}"
   if [[ $OSTYPE == darwin* ]]; then
     local stat_bin="/usr/bin/stat"; [[ -x $stat_bin ]] || stat_bin="stat"
-    perms_sym=$($stat_bin -f '%Sp' "$path_arg" 2>/dev/null)
-    perms_oct=$($stat_bin -f '%p' "$path_arg" 2>/dev/null)
-    size_bytes=$($stat_bin -f '%z' "$path_arg" 2>/dev/null)
-    link_count=$($stat_bin -f '%l' "$path_arg" 2>/dev/null)
-    created_at=$($stat_bin -f '%SB' -t '%b %d %Y %H:%M' "$path_arg" 2>/dev/null)
-    modified_at=$($stat_bin -f '%Sm' -t '%b %d %Y %H:%M' "$path_arg" 2>/dev/null)
-    created_epoch=$($stat_bin -f '%B' "$path_arg" 2>/dev/null)
-    modified_epoch=$($stat_bin -f '%m' "$path_arg" 2>/dev/null)
+    local stat_line
+    stat_line=$($stat_bin -f '%Sp|%p|%z|%l|%SB|%Sm|%B|%m|%Su:%Sg|%Sa|%a|%Sf' -t '%b %d %Y %H:%M' -- "$path_arg" 2>/dev/null)
+    IFS='|' read -r perms_sym perms_oct size_bytes link_count created_at modified_at created_epoch modified_epoch owner_group accessed_at accessed_epoch posix_flags <<< "$stat_line"
+    [[ "$posix_flags" == '-' ]] && posix_flags=""
   else
-    perms_sym=$(stat -c '%A' -- "$path_arg")
-    perms_oct=$(stat -c '%a' -- "$path_arg")
-    size_bytes=$(stat -c '%s' -- "$path_arg")
-    link_count=$(stat -c '%h' -- "$path_arg")
-    created_at=$(stat -c '%w' -- "$path_arg"); [[ "$created_at" == '-' ]] && created_at="unknown"
-    modified_at=$(stat -c '%y' -- "$path_arg")
-    created_epoch=$(stat -c '%W' -- "$path_arg" 2>/dev/null)
-    modified_epoch=$(stat -c '%Y' -- "$path_arg" 2>/dev/null)
+    local stat_line
+    stat_line=$(stat -c '%A|%a|%s|%h|%w|%y|%W|%Y|%U:%G|%x|%X' -- "$path_arg" 2>/dev/null)
+    IFS='|' read -r perms_sym perms_oct size_bytes link_count created_at modified_at created_epoch modified_epoch owner_group accessed_at accessed_epoch <<< "$stat_line"
+    [[ "$created_at" == '-' ]] && created_at="unknown"
+    posix_flags=""
   fi
 
     local size_human=$(_hr_size ${size_bytes:-0})
@@ -385,26 +233,25 @@ finfo() {
     is_text="text"
     charset=$(print -r -- "$mime_line" | sed -nE 's/.*charset=([^;]+).*/\1/p')
   fi
+  # Precompute line count for text files (used by header, essentials, and machine modes)
+  local lc=""
+  if [[ -f "$target" && "$is_text" == text ]]; then
+    lc=$(wc -l < "$path_arg" 2>/dev/null | tr -d ' ')
+  fi
   # macOS UTType
     local uttype=""
   if [[ $OSTYPE == darwin* ]]; then
     uttype=$(mdls -name kMDItemContentType -raw "$path_arg" 2>/dev/null)
     [[ "$uttype" == "(null)" ]] && uttype=""
   fi
-  # macOS flags
-    local posix_flags=""
-  if [[ $OSTYPE == darwin* ]]; then
-    local stat_bin="/usr/bin/stat"; [[ -x $stat_bin ]] || stat_bin="stat"
-    posix_flags=$($stat_bin -f '%Sf' "$path_arg" 2>/dev/null)
-    [[ "$posix_flags" == '-' ]] && posix_flags=""
-  fi
+  # macOS flags captured above
 
   # Styling helpers
   # (LABEL/VALUE/PATHC/NUM already themed above)
 
   # Bullet glyph selection
     local BULLET="•"
-  if (( opt_ascii_bullets )); then BULLET="•"; fi
+  if (( opt_ascii_bullets )); then BULLET="*"; fi
   if (( opt_nerd_bullets )) || [[ -n ${i_oct_file_directory:-} ]]; then
     BULLET=""
   fi
@@ -424,7 +271,8 @@ finfo() {
       _logo
       local short_type="${file_desc%%,*}"
       local head_size="$size_human"; [[ -d "$target" ]] && head_size="—"
-      local head_lines=""; if [[ -f "$target" && "$is_text" == text ]]; then local lc_head; lc_head=$(wc -l < "$path_arg" 2>/dev/null | tr -d ' '); [[ -n "$lc_head" ]] && head_lines=" · ${lc_head} lines"; fi
+      # Use precomputed line count for header summary
+      if [[ -n "$lc" ]]; then head_lines=" · ${lc} lines"; fi
       printf "%s%s%s · %s · %s%s\n" "$HB" "$name" "$RESET" "$short_type" "$head_size" "$head_lines"
     else
       _logo
@@ -450,9 +298,7 @@ finfo() {
     _kvx type "File" "${VALUE}${name}${RESET} ${DIM}–${RESET} ${header_type}"
     fi
 
-  # Owners
-  local owner_group
-  if [[ $OSTYPE == darwin* ]]; then owner_group=$($stat_bin -f '%Su:%Sg' "$path_arg" 2>/dev/null); else owner_group=$(stat -c '%U:%G' "$path_arg" 2>/dev/null); fi
+  # owner_group already parsed from stat batch above
 
   # 2) Essentials
     local want_essentials=1
@@ -468,7 +314,6 @@ finfo() {
     fi
     # Lines (if text)
     if [[ -f "$target" && "$is_text" == text ]]; then
-      local lc; lc=$(wc -l < "$path_arg" 2>/dev/null | tr -d ' ')
       [[ -n "$lc" ]] && _kv "Lines" "${lc}"
     fi
     # MIME / UTType
@@ -486,10 +331,13 @@ finfo() {
       subdirs=( "$path_arg"/*(/N) )
       files=( "$path_arg"/*(.N) )
       _kv "Entries" "${#subdirs} dirs, ${#files} files"
-      local dsz_bytes dsz
-      dsz_bytes=$(du -sk "$path_arg" 2>/dev/null | awk '{print $1*1024}')
-      [[ -n "$dsz_bytes" ]] && dsz=$(_hr_size "$dsz_bytes")
-      [[ -n "$dsz" ]] && _kv "Disk" "${dsz}"
+      # Disk usage gated behind --long/--verbose to avoid expensive scans on large trees
+      if (( opt_long || opt_verbose )); then
+        local dsz_bytes dsz
+        dsz_bytes=$(du -sk "$path_arg" 2>/dev/null | awk '{print $1*1024}')
+        [[ -n "$dsz_bytes" ]] && dsz=$(_hr_size "$dsz_bytes")
+        [[ -n "$dsz" ]] && _kv "Disk" "${dsz}"
+      fi
       # Top subdir by immediate entries (best-effort)
       if (( ${#subdirs[@]} > 0 )); then
         local _top_name="" _top_count=0
@@ -535,7 +383,7 @@ finfo() {
       _print_rate_over_window "$path_arg" "${opt_monitor_secs:-1}" "$unit_scheme"
     fi
     # Git (optional)
-    _compute_git_info "$target"
+    _compute_git_info "$abs_path"
     if (( in_repo )) && (( ! opt_no_git || opt_force_git )); then
       _kv "Git" "${branch} ${DIM}(${git_flag})${RESET}"
     fi
@@ -550,10 +398,7 @@ finfo() {
     local want_timeline=$(( opt_brief ? 0 : 1 ))
     if (( emit_pretty && want_timeline )); then
   _section "TIMELINE" dates
-  # Access time (best-effort)
-  local accessed_at accessed_epoch
-  if [[ $OSTYPE == darwin* ]]; then accessed_at=$($stat_bin -f '%Sa' -t '%b %d %Y %H:%M' "$path_arg" 2>/dev/null); accessed_epoch=$($stat_bin -f '%a' "$path_arg" 2>/dev/null);
-  else accessed_at=$(stat -c '%x' "$path_arg" 2>/dev/null); accessed_epoch=$(stat -c '%X' "$path_arg" 2>/dev/null); fi
+  # Access time already captured in batched stat above
   # Relatives
   local created_rel="" modified_rel="" accessed_rel=""
   # Only compute relative times when epoch values are purely numeric and positive
@@ -783,31 +628,7 @@ finfo() {
 
   # HTML mode: emit a minimal single-file report (self-contained plaintext/HTML)
   if (( opt_html )); then
-    # Very simple HTML wrapping of key sections
-    local title="finfo: ${name}"
-    echo "<!DOCTYPE html><html><head><meta charset=\"utf-8\"><title>${title}</title><style>body{font-family:ui-monospace,Menlo,Consolas,monospace;background:#111;color:#ddd;padding:16px} h1,h2{color:#9cf} .dim{color:#888} .sec{margin-top:1em} code{color:#cdf}</style></head><body>"
-    printf "<h1>%s</h1>\n" "$name"
-    echo "<div class=\"sec\"><h2>Essentials</h2>"
-    printf "<div>Type: <code>%s</code></div>\n" "$file_desc"
-    printf "<div>Size: <code>%s</code> <span class=\"dim\">(%s B)</span></div>\n" "$(_hr_size_fmt ${size_bytes:-0} "$unit_scheme")" "${size_bytes:-0}"
-    [[ -n "$lc" ]] && printf "<div>Lines: <code>%s</code></div>\n" "$lc"
-    printf "<div>Owner: <code>%s</code> Perms: <code>%s</code> (<span class=\"dim\">%s</span>)</div>\n" "$owner_group" "$perms_sym" "$perms_oct"
-    [[ -n "$about_str" ]] && printf "<div>About: <code>%s</code></div>\n" "$about_str"
-    echo "</div>"
-    echo "<div class=\"sec\"><h2>Timeline</h2>"
-    printf "<div>Created: <code>%s</code></div>\n" "$created_at"
-    printf "<div>Modified: <code>%s</code></div>\n" "$modified_at"
-    echo "</div>"
-    echo "<div class=\"sec\"><h2>Paths</h2>"
-    printf "<div>Rel: <code>%s</code></div>\n" "$rel_path"
-    printf "<div>Abs: <code>%s</code></div>\n" "$abs_path"
-    echo "</div>"
-    echo "<div class=\"sec\"><h2>Security</h2>"
-    printf "<div>Gatekeeper: <code>%s</code> Codesign: <code>%s</code> Team: <code>%s</code> Notarization: <code>%s</code> Verdict: <code>%s</code></div>\n" "$gk_assess" "$cs_status" "$cs_team" "$nota_stapled" "$verdict"
-    [[ -n "$qstr" ]] && printf "<div>Quarantine: <code>yes</code> (<span class=\"dim\">%s</span>)</div>\n" "${qstr%%;*}"
-    [[ -n "$froms" ]] && printf "<div>WhereFroms: <code>%s</code></div>\n" "$froms"
-    echo "</div>"
-    echo "</body></html>"
+    html_report "$name" "$file_desc" "${size_bytes:-0}" "$unit_scheme" "$lc" "$owner_group" "$perms_sym" "$perms_oct" "$created_at" "$modified_at" "$rel_path" "$abs_path" "$gk_assess" "$cs_status" "$cs_team" "$nota_stapled" "$verdict" "$qstr" "$froms" "$about_str"
     _cleanup; return 0
   fi
 
