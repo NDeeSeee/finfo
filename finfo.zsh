@@ -481,7 +481,7 @@ finfo() {
       if [[ -n "$qr_hash_algo" && "$qr_hash_algo" == "$hash_algo" ]]; then
         if command -v qrencode >/dev/null 2>&1 && [[ -t 1 ]]; then
           printf "  %s%s %-*s %s\n" "$LABEL" "$(_glyph info)" 12 "QR:" "${DIM}(checksum ${algo_disp})${RESET}"
-          qrencode -t ANSIUTF8 "$checksum" || true
+          qrencode -t ANSIUTF8 -s 1 -m 0 "$checksum" || true
         else
           printf "  %s%s %-*s %s\n" "$LABEL" "$(_glyph info)" 12 "QR:" "${YELLOW}qrencode not available or not a TTY${RESET}"
         fi
