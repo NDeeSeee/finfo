@@ -39,6 +39,7 @@ finfo diff A B             # metadata diff (porcelain-based)
 finfo chmod PATH           # interactive chmod helper (arrows/space/s/q)
 finfo watch PATH [secs]    # live sample size/mtime/quarantine changes
 finfo html --dashboard DIR # export dist/index.html dashboard for quick browsing
+finfo tui [PATH…]          # interactive TUI (Go app if installed; shell fallback)
 ```
 
 ### Keys panel
@@ -111,6 +112,22 @@ Quickly produce a single-file HTML dashboard:
 ./finfo.zsh html --dashboard .
 open dist/index.html # macOS
 ```
+
+## Export reports (JSON / YAML)
+
+- Save JSON directly:
+
+```bash
+./finfo.zsh --json PATH > report.json
+```
+
+- Save YAML (requires `yq`):
+
+```bash
+./finfo.zsh --json PATH | yq -P > report.yaml
+```
+
+Planned: a first‑class `export` subcommand (see SPEC) to write `--json/--yaml` directly to files via `--out`.
 
 ## Table and TUI
 ## Themes

@@ -172,8 +172,13 @@ finfo() {
   # Subcommand: table [PATH…] → compact aligned table (pure zsh)
   if [[ "$1" == table ]]; then shift; finfo_table "$@"; _cleanup; return $?; fi
 
-  # Subcommand: tui [PATH…] → minimal pure-zsh TUI
-  if [[ "$1" == tui ]]; then shift; finfo_tui "$@"; _cleanup; return $?; fi
+  # Subcommand: tui [PATH…] → launch Go TUI if available; fallback to pure zsh
+  if [[ "$1" == tui ]]; then
+    shift
+    if command -v finfotui >/dev/null 2>&1; then finfotui "$@"; _cleanup; return $?; fi
+    if [[ -x "$FINFOROOT/tui/finfotui" ]]; then "$FINFOROOT/tui/finfotui" "$@"; _cleanup; return $?; fi
+    finfo_tui "$@"; _cleanup; return $?;
+  fi
 
   # Subcommand: browse [PATH…] → interactive browser (fzf+jq if present)
   if [[ "$1" == browse ]]; then shift; finfo_browse "$@"; _cleanup; return $?; fi
@@ -625,13 +630,15 @@ finfo() {
       done
     fi
     fi
-  # 7) Tips (1 line max, contextual)
+  # 7) Tips (compact, two-line block for readability)
     if (( emit_pretty && ! opt_quiet )); then
     if [[ -d "$target" ]]; then
-      printf "  %s%s %-*s %s\n" "$LABEL" "$(_glyph info)" 12 "Tip:" "${CYAN}use 'll' for detailed listing${RESET}"
+      printf "  %s%s %sTip:%s\n" "$LABEL" "$(_glyph info)" "$BOLD" "$RESET"
+      printf "    %suse 'll' for detailed listing%s\n" "$CYAN" "$RESET"
     else
       if command -v bat >/dev/null 2>&1; then
-        printf "  %s%s %-*s %s\n" "$LABEL" "$(_glyph info)" 12 "Tip:" "${CYAN}prefer 'bat' over 'cat' for syntax highlighting${RESET}"
+        printf "  %s%s %sTip:%s\n" "$LABEL" "$(_glyph info)" "$BOLD" "$RESET"
+        printf "    %sprefer 'bat' over 'cat' for syntax highlighting%s\n" "$CYAN" "$RESET"
       fi
     fi
   fi
