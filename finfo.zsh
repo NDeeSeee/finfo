@@ -9,6 +9,9 @@ source ./lib/_actions.zsh
 source ./lib/_security.zsh
 source ./lib/_filetype.zsh
 source ./lib/_summary.zsh
+source ./lib/_checksum.zsh
+source ./lib/_monitor.zsh
+source ./lib/_html.zsh
 
 # Format seconds as human-readable age (largest 2 units) + " ago"
 _fmt_ago() {
@@ -525,23 +528,7 @@ finfo() {
     fi
     # Monitor growth/shrink rate (files only; optional)
     if (( opt_monitor )) && [[ -f "$path_arg" ]]; then
-      local s1 s2 dt=${opt_monitor_secs:-1}
-      s1=${size_bytes:-0}
-      sleep $dt
-      if [[ $OSTYPE == darwin* ]]; then
-        local _stat_bin="/usr/bin/stat"; [[ -x $_stat_bin ]] || _stat_bin="stat"
-        s2=$($_stat_bin -f '%z' "$path_arg" 2>/dev/null)
-      else
-        s2=$(stat -c '%s' -- "$path_arg")
-      fi
-      [[ -z "$s2" ]] && s2=$s1
-      local dr=$(( s2 - s1 ))
-      local sign="~"; local color="$WHITE"
-      if (( dr > 0 )); then sign="+"; color="$GREEN"; elif (( dr < 0 )); then sign="-"; color="$YELLOW"; fi
-      local rate_abs=$(( dr>=0 ? dr : -dr ))
-      local per_sec=$(( dt>0 ? rate_abs/dt : rate_abs ))
-      local rate_disp; rate_disp=$(_hr_size_fmt $per_sec "$unit_scheme")
-      _kv "Rate" "${color}${sign}${rate_disp}/s${RESET} ${DIM}(${dt}s window)${RESET}"
+      _print_rate_over_window "$path_arg" "${opt_monitor_secs:-1}" "$unit_scheme"
     fi
     # Git (optional)
     local in_repo=0; if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then in_repo=1; fi
@@ -560,16 +547,7 @@ finfo() {
     fi
   # Checksum
     if [[ -n "$hash_algo" && -f "$path_arg" ]]; then
-    local checksum="" algo_disp="${hash_algo}"
-    case "$hash_algo" in
-      sha256)
-        if command -v shasum >/dev/null 2>&1; then checksum=$(shasum -a 256 -- "$path_arg" 2>/dev/null | awk '{print $1}')
-        elif command -v openssl >/dev/null 2>&1; then checksum=$(openssl dgst -sha256 "$path_arg" 2>/dev/null | awk '{print $2}')
-        fi;;
-      blake3|b3)
-        if command -v b3sum >/dev/null 2>&1; then checksum=$(b3sum -- "$path_arg" 2>/dev/null | awk '{print $1}')
-        fi;;
-    esac
+    local checksum="" algo_disp="${hash_algo}"; _compute_checksum "$path_arg" "$hash_algo"; checksum="$checksum_out"
     [[ -n "$checksum" ]] && _kv "Checksum" "${algo_disp} ${DIM}${checksum}${RESET}" || _kv "Checksum" "${DIM}${algo_disp} unavailable${RESET}"
     fi
 
