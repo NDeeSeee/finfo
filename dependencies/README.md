@@ -51,8 +51,10 @@ Install these to unlock richer output, nicer UX, or developer convenience. finfo
   - Debian/Ubuntu: `sudo apt-get install -y jq` (yq via snap/pip/pkg)
 - Viewers and editors (used for action hints): `bat`, `glow`, `code`, `subl`, `cursor`
   - macOS: `brew install bat glow`
+  - Debian/Ubuntu: `sudo apt-get install -y bat` (or `batcat`), `glow`
 - Duplicates and archives: `p7zip` (`7z`)
   - macOS: `brew install p7zip`
+  - Debian/Ubuntu: `sudo apt-get install -y p7zip-full`
 - Open handles (verbose): `lsof`
   - macOS: already present; Debian/Ubuntu: `sudo apt-get install -y lsof`
 - Fonts (icons in headers/sections): Nerd Fonts (e.g., Hack Nerd Font)
@@ -64,6 +66,12 @@ Install these to unlock richer output, nicer UX, or developer convenience. finfo
 - JSON processor: `jq`
   - macOS: `brew install jq`
   - Debian/Ubuntu: `sudo apt-get install -y jq`
+- Fast file search (preferred): `fd`
+  - macOS: `brew install fd`
+  - Debian/Ubuntu: `sudo apt-get install -y fd-find` (alias: `alias fd=fdfind`)
+- Fast code/text search: `ripgrep` (`rg`)
+  - macOS: `brew install ripgrep`
+  - Debian/Ubuntu: `sudo apt-get install -y ripgrep`
 - Visual scripting aids (optional): `gum`
   - macOS: `brew install gum`
   - Debian/Ubuntu: `sudo apt-get install -y gum` (or from project releases)
@@ -75,6 +83,17 @@ Install these to unlock richer output, nicer UX, or developer convenience. finfo
   - zsh-syntax-highlighting: https://github.com/zsh-users/zsh-syntax-highlighting
   - zsh-autosuggestions: https://github.com/zsh-users/zsh-autosuggestions
   - Enable via `plugins=(... zsh-syntax-highlighting zsh-autosuggestions)` in `~/.zshrc`
+
+## Shell completions (zsh)
+
+Basic completions are provided at `scripts/completions/_finfo`.
+
+Enable by adding to your `~/.zshrc`:
+
+```zsh
+fpath+=("$HOME/path/to/finfo/scripts/completions")
+autoload -Uz compinit && compinit
+```
 
 ## Developer/test dependencies
 
