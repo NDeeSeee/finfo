@@ -113,6 +113,10 @@ open dist/index.html # macOS
 ```
 
 ## Table and TUI
+## Themes
+
+Choose a theme with `--theme NAME` or `FINFOTHEME=NAME`. Available: `default`, `nord`, `dracula`, `solarized`, `synesthesia` (vibrant).
+
 
 - Pure zsh compact table:
 
@@ -152,6 +156,12 @@ Run the tiny golden test harness (requires `zsh`, JSON tests use `jq` when avail
 ```
 
 - Set `REGEN=1` to regenerate goldens if needed.
+
+## Version
+
+```bash
+finfo --version
+```
 
 ## Examples
 

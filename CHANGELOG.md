@@ -20,5 +20,5 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 ### Removed
 - Legacy subcommand fallback in `_cmd_loader.zsh`
 
-## [0.1.0] - YYYY-MM-DD
+## [0.1.0] - 2025-08-12
 - Initial structured release (to be tagged). Includes core finfo functionality and documentation.

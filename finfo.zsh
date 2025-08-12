@@ -100,8 +100,18 @@ finfo() {
   local -a argv_new
   local qr_hash_algo_req=""
   local show_help=0
+  # Version helper
+  _print_version() {
+    local vfile="$FINFOROOT/VERSION"
+    if [[ -f "$vfile" ]]; then
+      sed -n '1p' "$vfile"
+    else
+      (git -C "$FINFOROOT" describe --tags --always --dirty 2>/dev/null || echo "0.0.0")
+    fi
+  }
   while (( $# > 0 )); do
     case "$1" in
+      --version)     _print_version; return 0;;
       --json)        argv_new+=(-J);;
       --brief)       argv_new+=(-B);;
       --long)        argv_new+=(-L);;
@@ -585,19 +595,15 @@ finfo() {
       _section "ACTIONS" actions
       local -A seen_map=()
       local line
-      # Force xtrace off while rendering action lines to prevent debug leakage
-      set +x
       for line in "${act_lines[@]}"; do
         [[ -z "$line" ]] && continue
         if [[ -z ${seen_map[$line]:-} ]]; then
           seen_map[$line]=1
           local basecmd=${line%% *}
-          local _icon_out; _icon_out=$(_cmd_icon "$basecmd")
-          local _color_out; _color_out=$(_cmd_color "$basecmd")
-          printf "  %s%s %s%s\n" "$_color_out" "$_icon_out" "$line" "$RESET"
+          # Inline command color/icon to avoid xtrace leakage; ensure stderr is quiet
+          printf "\t%s%s %s%s\n" "$(_cmd_color "$basecmd" 2>/dev/null)" "$(_cmd_icon "$basecmd" 2>/dev/null)" "$line" "$RESET"
         fi
       done
-      :
     fi
     fi
   # 7) Tips (1 line max, contextual)
