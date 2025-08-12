@@ -1,23 +1,35 @@
 # finfo – rich file/dir inspector for zsh (macOS-friendly)
 # Lightweight, fast, colorful; minimal external calls.
 
-source ./lib/_icons.zsh
-source ./lib/_colors.zsh
-source ./lib/_format.zsh
-source ./lib/_sections.zsh
-source ./lib/_actions.zsh
-source ./lib/_security.zsh
-source ./lib/_filetype.zsh
-source ./lib/_summary.zsh
-source ./lib/_checksum.zsh
-source ./lib/_monitor.zsh
-source ./lib/_html.zsh
-source ./lib/_cmd_loader.zsh
-_load_cmds
-source ./lib/_git.zsh
-source ./lib/_config.zsh
+# Determine repository root for robust module sourcing
+if [[ -z ${FINFOROOT:-} ]]; then
+  # In zsh, ${(%):-%N} expands to the current script when sourced
+  local __finfo_src=${(%):-%N}
+  if [[ -n "$__finfo_src" && -f "$__finfo_src" ]]; then
+    FINFOROOT=${__finfo_src:A:h}
+  else
+    # Fallback to current directory
+    FINFOROOT=${PWD:A}
+  fi
+fi
 
-source ./lib/_size.zsh
+source "$FINFOROOT/lib/_icons.zsh"
+source "$FINFOROOT/lib/_colors.zsh"
+source "$FINFOROOT/lib/_format.zsh"
+source "$FINFOROOT/lib/_sections.zsh"
+source "$FINFOROOT/lib/_actions.zsh"
+source "$FINFOROOT/lib/_security.zsh"
+source "$FINFOROOT/lib/_filetype.zsh"
+source "$FINFOROOT/lib/_summary.zsh"
+source "$FINFOROOT/lib/_checksum.zsh"
+source "$FINFOROOT/lib/_monitor.zsh"
+source "$FINFOROOT/lib/_html.zsh"
+source "$FINFOROOT/lib/_cmd_loader.zsh"
+_load_cmds "$FINFOROOT"
+source "$FINFOROOT/lib/_git.zsh"
+source "$FINFOROOT/lib/_config.zsh"
+
+source "$FINFOROOT/lib/_size.zsh"
 
 # Theme application provided by lib/_colors.zsh
 
