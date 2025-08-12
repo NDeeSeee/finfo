@@ -126,6 +126,23 @@ func chmodPath(p, oct string) error {
 	return exec.Command("chmod", oct, p).Run()
 }
 
+func moveToTrash(p string) error {
+    if runtime.GOOS == "darwin" {
+        if which("osascript") != "" {
+            // AppleScript move to trash
+            return exec.Command("osascript", "-e", fmt.Sprintf("tell application \"Finder\" to delete POSIX file \"%s\"", p)).Run()
+        }
+        // Fallback: move to ~/.Trash (best-effort, no overwrite)
+        home, _ := os.UserHomeDir()
+        dst := filepath.Join(home, ".Trash", filepath.Base(p))
+        return os.Rename(p, dst)
+    }
+    // Linux: try gio or trash-cli if available
+    if which("gio") != "" { return exec.Command("gio", "trash", p).Run() }
+    if which("trash-put") != "" { return exec.Command("trash-put", p).Run() }
+    return os.Remove(p)
+}
+
 // ---------- JSON preview ----------
 
 type finfoJSON struct {
@@ -207,6 +224,7 @@ type model struct {
     theme   theme
     originalArgs []string
     lastPreviewRaw string
+    pendingAct action
 }
 
 type jobs struct {
@@ -262,6 +280,7 @@ const (
     actChmod
     actOpenWith
     actCopyJSON
+    actTrash
 )
 
 type actionItem struct {
@@ -294,6 +313,7 @@ func initialModelFromArgs(args []string) model {
         actionItem{name: "Change permissions (chmod)", kind: actChmod},
         actionItem{name: "Open with… (macOS)", kind: actOpenWith},
         actionItem{name: "Copy JSON (preview)", kind: actCopyJSON},
+        actionItem{name: "Move to Trash", kind: actTrash},
     }, list.NewDefaultDelegate(), 0, 0)
     sp := spinner.New()
     sp.Spinner = spinner.Points
@@ -389,6 +409,15 @@ func (m model) runActionOnTargets(act action) tea.Cmd {
             })
         }
         mstatus = "clearing quarantine"
+    case actTrash:
+        for _, t := range targets {
+            p := t.path
+            cmds = append(cmds, func() tea.Msg {
+                err := moveToTrash(p)
+                return jobDoneMsg{path: p, act: act, err: err}
+            })
+        }
+        mstatus = "trashing"
     }
     if mstatus != "" { /* no-op, status updated by caller */ }
     return tea.Batch(cmds...)
@@ -496,6 +525,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                     case actCopyJSON:
                         if m.lastPreviewRaw != "" { copyText(m.lastPreviewRaw); m.status = "JSON copied" }
                         m.mode = modeList; return m, nil
+                    case actTrash:
+                        m.mode = modeConfirm
+                        m.pendingAct = actTrash
+                        m.status = fmt.Sprintf("confirm move to Trash for %d item(s)? y/N", len(m.targetItems()))
+                        return m, nil
                     default:
                         m.jobs.running += len(m.targetItems())
                         return m, m.runActionOnTargets(it.kind)
@@ -513,6 +547,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             if s == "y" || s == "Y" {
                 m.jobs.running += len(m.targetItems())
                 m.mode = modeList
+                if m.pendingAct == actTrash {
+                    m.pendingAct = 0
+                    return m, tea.Batch(m.runActionOnTargets(actTrash), m.reloadList())
+                }
                 return m, tea.Batch(m.runActionOnTargets(actClearQ), m.loadPreview())
             }
             if s == "n" || s == "N" || msg.Type == tea.KeyEsc {
