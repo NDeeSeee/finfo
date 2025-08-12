@@ -13,6 +13,8 @@ source ./lib/_checksum.zsh
 source ./lib/_monitor.zsh
 source ./lib/_html.zsh
 source ./lib/cmd_duplicates.zsh
+source ./lib/_git.zsh
+source ./lib/_config.zsh
 
 # Format seconds as human-readable age (largest 2 units) + " ago"
 _fmt_ago() {
@@ -297,6 +299,7 @@ finfo() {
   fi
 
   _finfo_colors
+  _load_config
   [[ $opt_no_color -eq 1 ]] && BOLD="" DIM="" RESET="" RED="" GREEN="" YELLOW="" BLUE="" MAGENTA="" CYAN="" WHITE=""
   _apply_theme "${FINFOTHEME:-default}"
   # Map theme to local variables for existing code
@@ -532,17 +535,8 @@ finfo() {
       _print_rate_over_window "$path_arg" "${opt_monitor_secs:-1}" "$unit_scheme"
     fi
     # Git (optional)
-    local in_repo=0; if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then in_repo=1; fi
+    _compute_git_info "$target"
     if (( in_repo )) && (( ! opt_no_git || opt_force_git )); then
-      local branch status_line git_flag="clean" mark="$GREEN✓$RESET"
-      branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || git rev-parse --short HEAD)
-      status_line=$(git status --porcelain -- "$target" 2>/dev/null)
-      if [[ -n "$status_line" ]]; then
-        if print -r -- "$status_line" | grep -q '^??'; then git_flag="untracked"; mark="$YELLOW●$RESET";
-        elif print -r -- "$status_line" | grep -Eq '^[ MARC]M|^M '; then git_flag="modified"; mark="$YELLOW●$RESET";
-        elif print -r -- "$status_line" | grep -q '^A '; then git_flag="added"; mark="$YELLOW●$RESET";
-        elif print -r -- "$status_line" | grep -q '^D '; then git_flag="deleted"; mark="$YELLOW●$RESET"; fi
-      fi
       _kv "Git" "${branch} ${DIM}(${git_flag})${RESET}"
     fi
     fi
