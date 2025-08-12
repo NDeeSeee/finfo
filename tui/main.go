@@ -469,6 +469,7 @@ func (m model) Init() tea.Cmd {
             m.list.SetItems([]list.Item{it})
         }
     }
+    if m.showPreview { m.preview.SetContent("Loading…") }
     return tea.Batch(m.loadPreview(), m.spin.Tick)
 }
 
@@ -674,6 +675,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         // Try parse JSON, fallback to raw text
         var fj finfoJSON
         s := msg.out
+        // Extract JSON object if stderr/noise appended
+        if i := strings.Index(s, "{"); i >= 0 {
+            if j := strings.LastIndex(s, "}"); j > i { s = s[i:j+1] }
+        }
         m.lastPreviewRaw = s
         if err := json.Unmarshal([]byte(s), &fj); err == nil && fj.Name != "" {
             b := &strings.Builder{}
