@@ -37,7 +37,6 @@ source "$FINFOROOT/lib/_size.zsh"
 
 # Small header logo
 _logo() {
-  local cols=$(_term_cols)
   if _has_nerd; then
     local fg=$(_color256 81)
     printf " %s finfo%s\n" "$fg" "$RESET"
@@ -203,14 +202,9 @@ finfo() {
   # Name and icon
     local name=${target:t}
   local glyph=""
-  if command -v lsd &>/dev/null; then
-    glyph=$(lsd --icon always --color never -1 -- "$target" 2>/dev/null | head -n1 | sed -E 's/^([^[:space:]]+).*/\1/')
-  fi
-  if [[ -z $glyph ]]; then
-    if [[ -d $target ]]; then glyph=$(_icon dir)
-    elif [[ -L $target ]]; then glyph=$(_icon link)
-    else glyph=$(_icon file); fi
-  fi
+  if [[ -d $target ]]; then glyph=$(_icon dir)
+  elif [[ -L $target ]]; then glyph=$(_icon link)
+  else glyph=$(_icon file); fi
 
   # stat block (batched)
   local perms_sym perms_oct size_bytes created_at modified_at created_epoch modified_epoch link_count owner_group accessed_at accessed_epoch posix_flags
@@ -275,7 +269,7 @@ finfo() {
     if (( emit_pretty )); then
     # Header bar: one-line headline (name · short type · size · lines)
     if (( ! opt_no_header )); then
-      local HB=""; local HFRESET="$RESET"
+      local HB=""
       if command -v tput >/dev/null 2>&1 && [[ -t 1 ]] && [[ -z "$opt_no_color" ]]; then
         HB="$(tput bold 2>/dev/null)$(tput setaf 4 2>/dev/null)"
       else
@@ -285,6 +279,7 @@ finfo() {
       local short_type="${file_desc%%,*}"
       local head_size="$size_human"; [[ -d "$target" ]] && head_size="—"
       # Use precomputed line count for header summary
+      local head_lines=""
       if [[ -n "$lc" ]]; then head_lines=" · ${lc} lines"; fi
       printf "%s%s%s · %s · %s%s\n" "$HB" "$name" "$RESET" "$short_type" "$head_size" "$head_lines"
     else
@@ -297,7 +292,7 @@ finfo() {
     local is_symlink=0 link_target link_exists=0
   if [[ -L "$target" ]]; then
     is_symlink=1
-    link_target=$(readlink -- "$target" 2>/dev/null)
+    link_target=$(readlink "$target" 2>/dev/null)
     if [[ -n "$link_target" ]]; then
       local base_dir=${target:h}
       [[ -e "$base_dir/$link_target" ]] && link_exists=1
@@ -414,10 +409,12 @@ finfo() {
   # Access time already captured in batched stat above
   # Relatives
   local created_rel="" modified_rel="" accessed_rel=""
+  local now_epoch
+  now_epoch=$(date +%s)
   # Only compute relative times when epoch values are purely numeric and positive
-  if [[ "$created_epoch" == <-> && "$created_epoch" != "0" ]]; then created_rel=$(_fmt_ago $(( $(date +%s) - created_epoch ))); fi
-  if [[ "$modified_epoch" == <-> && "$modified_epoch" != "0" ]]; then modified_rel=$(_fmt_ago $(( $(date +%s) - modified_epoch ))); fi
-  if [[ "$accessed_epoch" == <-> && "$accessed_epoch" != "0" ]]; then accessed_rel=$(_fmt_ago $(( $(date +%s) - accessed_epoch ))); fi
+  if [[ "$created_epoch" == <-> && "$created_epoch" != "0" ]]; then created_rel=$(_fmt_ago $(( now_epoch - created_epoch ))); fi
+  if [[ "$modified_epoch" == <-> && "$modified_epoch" != "0" ]]; then modified_rel=$(_fmt_ago $(( now_epoch - modified_epoch ))); fi
+  if [[ "$accessed_epoch" == <-> && "$accessed_epoch" != "0" ]]; then accessed_rel=$(_fmt_ago $(( now_epoch - accessed_epoch ))); fi
   _kv "Created" "${created_at:-–} ${DIM}(${created_rel})${RESET}"
   _kv "Modified" "${modified_at:-–} ${DIM}(${modified_rel})${RESET}"
   [[ -n "$accessed_at" ]] && _kv "Accessed" "${accessed_at} ${DIM}(${accessed_rel})${RESET}"
