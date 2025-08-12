@@ -88,8 +88,18 @@ func which(cmd string) string {
 }
 
 func finfoCmd() []string {
-	if p := which("finfo"); p != "" { return []string{p} }
-	if _, err := os.Stat("./finfo.zsh"); err == nil { return []string{"./finfo.zsh"} }
+    if p := which("finfo"); p != "" { return []string{p} }
+    // Try CWD and parent
+    if _, err := os.Stat("./finfo.zsh"); err == nil { return []string{"./finfo.zsh"} }
+    if _, err := os.Stat("../finfo.zsh"); err == nil { return []string{"../finfo.zsh"} }
+    // Try relative to executable dir
+    if exe, err := os.Executable(); err == nil {
+        exeDir := filepath.Dir(exe)
+        cand1 := filepath.Join(exeDir, "finfo.zsh")
+        if _, err := os.Stat(cand1); err == nil { return []string{cand1} }
+        cand2 := filepath.Join(exeDir, "..", "finfo.zsh")
+        if _, err := os.Stat(cand2); err == nil { return []string{cand2} }
+    }
 	return []string{"finfo"}
 }
 
@@ -449,6 +459,14 @@ func initialModelFromArgs(args []string) model {
 }
 
 func (m model) Init() tea.Cmd {
+    // When single-file, seed preview immediately even if list is empty
+    if m.singleFile && len(m.list.Items()) == 0 && len(m.originalArgs) == 1 {
+        // create a synthetic list with the file so preview works
+        if fi, err := os.Stat(m.originalArgs[0]); err == nil {
+            it := fileItem{path: m.originalArgs[0], isDir: fi.IsDir()}
+            m.list.SetItems([]list.Item{it})
+        }
+    }
     return tea.Batch(m.loadPreview(), m.spin.Tick)
 }
 
