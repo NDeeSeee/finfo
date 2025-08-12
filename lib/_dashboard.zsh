@@ -66,10 +66,13 @@ finfo_html_dashboard() {
     .facet input{accent-color:var(--accent)}
     table{width:100%;border-collapse:separate;border-spacing:0}
     thead th{position:sticky;top:56px;background:var(--panel);text-align:left;padding:8px 10px;border-bottom:1px solid #0006;cursor:pointer}
-    tbody td{padding:8px 10px;border-bottom:1px solid #0003;vertical-align:top}
-    tbody tr:nth-child(even){background:var(--stripe)}
-    tbody tr.selected{outline:1px solid var(--accent); outline-offset:-1px; background: linear-gradient(0deg, #0003, #0003)}
-    tbody tr:focus{outline:2px solid var(--accent); outline-offset:-2px}
+    /* Virtual scroll body */
+    .vwrap{border-top:1px solid #0006; height: calc(100vh - 260px); overflow:auto}
+    .row{display:grid;grid-template-columns:minmax(160px,2fr) 130px 90px minmax(220px,2fr) 110px 200px 2fr;gap:0;border-bottom:1px solid #0003}
+    .cell{padding:8px 10px}
+    .row:nth-child(even){background:var(--stripe)}
+    .row.selected{outline:1px solid var(--accent); outline-offset:-1px; background: linear-gradient(0deg, #0003, #0003)}
+    .row:focus{outline:2px solid var(--accent); outline-offset:-2px}
     .muted{color:var(--muted)}
     .badge{padding:1px 6px;border-radius:10px;background:#0003}
     .good{color:var(--good)}.warn{color:var(--warn)}.bad{color:var(--bad)}
@@ -78,6 +81,10 @@ finfo_html_dashboard() {
     .pager button{padding:4px 8px;border:1px solid #0006;background:transparent;color:var(--text);border-radius:6px}
     .count{margin-left:auto}
     code{color:var(--accent)}
+    /* Column visibility helpers */
+    .hide-col-name .col-name, .hide-col-bytes .col-bytes, .hide-col-size .col-size,
+    .hide-col-type .col-type, .hide-col-verdict .col-verdict, .hide-col-modified .col-modified, .hide-col-path .col-path { display:none }
+    .chosen{background: linear-gradient(0deg, #115, #115);}
     /* Modal */
     .overlay{position:fixed;inset:0;background:#0008;display:none;align-items:center;justify-content:center}
     .modal{background:var(--panel);border:1px solid #0005;border-radius:12px;max-width:720px;width:90%;max-height:80vh;overflow:auto;padding:16px;position:relative}
@@ -150,8 +157,18 @@ finfo_html_dashboard() {
             <span id="page" class="muted"></span>
             <button id="next">Next</button>
           </div>
+          <div style="margin-left:8px">
+            <details>
+              <summary class="muted">Columns</summary>
+              <div id="colpicker" class="facet" style="margin-top:6px"></div>
+            </details>
+          </div>
+          <div style="display:flex;gap:6px;margin-left:auto">
+            <button class="btn" id="copyjson" aria-label="Copy selected as JSON">Copy JSON</button>
+            <button class="btn" id="copyyaml" aria-label="Copy selected as YAML">Copy YAML</button>
+          </div>
         </div>
-        <table id="tbl" role="grid" aria-label="Results table">
+        <table id="tbl" aria-label="Results header">
       <thead>
         <tr>
           <th data-k="name" scope="col">Name</th>
@@ -163,8 +180,8 @@ finfo_html_dashboard() {
           <th data-k="path.rel" scope="col">Path</th>
         </tr>
       </thead>
-      <tbody></tbody>
         </table>
+        <div id="vbody" class="vwrap" role="grid" aria-label="Results"></div>
       </section>
     </div>
   </main>
@@ -205,8 +222,28 @@ HTML_HEAD
     let sortAsc = true;
     let query = '';
     const filters = { verdict: new Set(), ext: new Set(), mime: new Set(), owner: new Set(), from:null, to:null };
+    const cols = [
+      {key:'name', label:'Name', cls:'col-name', on:true},
+      {key:'size.bytes', label:'Bytes', cls:'col-bytes', on:true},
+      {key:'size.human', label:'Size', cls:'col-size', on:true},
+      {key:'type.description', label:'Type', cls:'col-type', on:true},
+      {key:'security.verdict', label:'Verdict', cls:'col-verdict', on:true},
+      {key:'dates.modified', label:'Modified', cls:'col-modified', on:true},
+      {key:'path.rel', label:'Path', cls:'col-path', on:true},
+    ];
+    function loadState(){
+      try{
+        const s = JSON.parse(localStorage.getItem('finfoState')||'{}');
+        if(s.cols){ cols.forEach(c=>{ if(s.cols[c.key]!==undefined) c.on = !!s.cols[c.key]; }); }
+        if(s.query) { query = s.query; qEl.value = query; }
+      }catch(_e){}
+    }
+    function saveState(){
+      const state = { cols:Object.fromEntries(cols.map(c=>[c.key,c.on])), query };
+      try{ localStorage.setItem('finfoState', JSON.stringify(state)); }catch(_e){}
+    }
 
-    const tbody = document.querySelector('#tbl tbody');
+    const vbody = document.getElementById('vbody');
     const countEl = document.getElementById('count'); countEl.setAttribute('aria-live','polite');
     const pageEl = document.getElementById('page');
     const qEl = document.getElementById('q');
@@ -228,17 +265,28 @@ HTML_HEAD
       if(v==='safe') return 'good'; if(v==='caution') return 'warn'; if(v==='unsafe') return 'bad'; return '';
     }
     function fmtDate(d){ return d || ''; }
+    const ROW_H = 33; // px fixed row height
+    function activeCls(){
+      const body = document.body;
+      body.classList.toggle('hide-col-name', !cols.find(c=>c.key==='name').on);
+      body.classList.toggle('hide-col-bytes', !cols.find(c=>c.key==='size.bytes').on);
+      body.classList.toggle('hide-col-size', !cols.find(c=>c.key==='size.human').on);
+      body.classList.toggle('hide-col-type', !cols.find(c=>c.key==='type.description').on);
+      body.classList.toggle('hide-col-verdict', !cols.find(c=>c.key==='security.verdict').on);
+      body.classList.toggle('hide-col-modified', !cols.find(c=>c.key==='dates.modified').on);
+      body.classList.toggle('hide-col-path', !cols.find(c=>c.key==='path.rel').on);
+    }
     function formatRow(r){
       const verdict = get(r,'security.verdict');
-      return `<tr role="row" tabindex="-1">
-        <td role="gridcell"><code>${r.name}</code></td>
-        <td role="gridcell" class="muted">${get(r,'size.bytes')}</td>
-        <td role="gridcell">${get(r,'size.human')}</td>
-        <td role="gridcell" class="muted">${get(r,'type.description')}</td>
-        <td role="gridcell" class="${verdictClass(verdict)}"><span class="badge">${verdict||''}</span></td>
-        <td role="gridcell" class="muted">${fmtDate(get(r,'dates.modified'))}</td>
-        <td role="gridcell" class="muted">${get(r,'path.rel')}</td>
-      </tr>`;
+      return `<div class="row" role="row" tabindex="-1">
+        <div class="cell col-name"><code>${r.name}</code></div>
+        <div class="cell col-bytes muted">${get(r,'size.bytes')}</div>
+        <div class="cell col-size">${get(r,'size.human')}</div>
+        <div class="cell col-type muted">${get(r,'type.description')}</div>
+        <div class="cell col-verdict ${verdictClass(verdict)}"><span class="badge">${verdict||''}</span></div>
+        <div class="cell col-modified muted">${fmtDate(get(r,'dates.modified'))}</div>
+        <div class="cell col-path muted">${get(r,'path.rel')}</div>
+      </div>`;
     }
     function extOf(name){ const i = name.lastIndexOf('.'); return i>0 ? name.slice(i+1).toLowerCase() : '(noext)'; }
     function applyFilter(rows){
@@ -279,45 +327,91 @@ HTML_HEAD
       sumDirs.textContent = dirs.toLocaleString();
       sumBytes.textContent = bytes.toLocaleString();
     }
-    let sel = 0; // selected row within current slice
-    function ensureVisible(tr){ if(!tr) return; const r=tr.getBoundingClientRect(); const p=tbody.parentElement.getBoundingClientRect(); if(r.top<p.top) tr.scrollIntoView({block:'nearest'}); if(r.bottom>p.bottom) tr.scrollIntoView({block:'nearest'}); }
+    let sel = 0; // focus index within current viewport (sorted indices)
+    let filteredCache = DATA;
+    let sortedCache = DATA;
+    let selected = new Set(); // Set<number> over sorted indices
+    let anchor = null; // number | null
+    function clearSelection(){ selected.clear(); anchor = null; }
+    function ensureVisible(el){ if(!el) return; const r=el.getBoundingClientRect(); const p=vbody.getBoundingClientRect(); if(r.top<p.top) el.scrollIntoView({block:'nearest'}); if(r.bottom>p.bottom) el.scrollIntoView({block:'nearest'}); }
     function render(){
       const filtered = applyFilter(DATA);
       summarize(filtered);
       const sorted = applySort(filtered);
-      const totalPages = Math.max(1, Math.ceil(sorted.length / PAGE_SIZE));
-      if(page>totalPages) page = totalPages;
-      const start = (page-1)*PAGE_SIZE;
-      const slice = sorted.slice(start, start+PAGE_SIZE);
-      tbody.innerHTML = slice.map(formatRow).join('');
-      // row click → details modal
-      const rows = tbody.querySelectorAll('tr');
-      rows.forEach((tr, i)=>{
-        tr.style.cursor='pointer';
-        tr.addEventListener('click', ()=> { sel=i; updateSel(); showDetails(slice[i]); });
-        tr.addEventListener('keydown', (e)=>{
-          if(e.key==='Enter'){ e.preventDefault(); showDetails(slice[i]); }
+      filteredCache = filtered; sortedCache = sorted;
+      countEl.textContent = `${filtered.length} items`;
+      pageEl.textContent = '';
+      // Virtual render for viewport
+      const H = vbody.clientHeight; const rowsPer = Math.max(1, Math.floor(H / ROW_H) + 5);
+      function draw(){
+        const scrollTop = vbody.scrollTop;
+        const firstIdx = Math.max(0, Math.floor(scrollTop / ROW_H));
+        const lastIdx = Math.min(sorted.length, firstIdx + rowsPer);
+        const slice = sorted.slice(firstIdx, lastIdx);
+        const topPad = firstIdx * ROW_H;
+        const bottomPad = Math.max(0, (sorted.length - lastIdx) * ROW_H);
+        vbody.innerHTML = `<div style="height:${topPad}px"></div>` + slice.map(formatRow).join('') + `<div style="height:${bottomPad}px"></div>`;
+        const rows = vbody.querySelectorAll('.row');
+        rows.forEach((rowEl, i)=>{
+          const idx = firstIdx + i;
+          rowEl.style.cursor='pointer';
+          const handleClick = (e)=>{
+            if(e.shiftKey){
+              if(anchor===null) anchor = sel;
+              selected.clear();
+              const a = Math.min(anchor, idx), b = Math.max(anchor, idx);
+              for(let k=a;k<=b;k++) selected.add(k);
+              sel = idx;
+            } else if(e.metaKey || e.ctrlKey){
+              if(selected.has(idx)) selected.delete(idx); else selected.add(idx);
+              sel = idx; anchor = idx;
+            } else {
+              selected.clear(); selected.add(idx); sel = idx; anchor = idx;
+            }
+            applySelection(rows, firstIdx);
+          };
+          rowEl.addEventListener('click', handleClick);
+          rowEl.addEventListener('keydown', (e)=>{ if(e.key==='Enter'){ e.preventDefault(); showDetails(sorted[idx]); }});
         });
-      });
-      function updateSel(){ rows.forEach((tr,j)=>{ tr.classList.toggle('selected', j===sel); tr.setAttribute('aria-selected', j===sel? 'true':'false'); tr.setAttribute('tabindex', j===sel? '0':'-1'); }); rows[sel]?.focus({preventScroll:true}); ensureVisible(rows[sel]); }
-      sel = Math.min(sel, Math.max(0, rows.length-1));
-      updateSel();
-      countEl.textContent = `${filtered.length} items (${PAGE_SIZE}/page)`;
-      pageEl.textContent = `Page ${page} / ${totalPages}`;
-      // keyboard nav on tbody
-      tbody.onkeydown = (e)=>{
-        if(e.key==='ArrowDown'){ e.preventDefault(); if(sel<rows.length-1){ sel++; updateSel(); } }
-        else if(e.key==='ArrowUp'){ e.preventDefault(); if(sel>0){ sel--; updateSel(); } }
-        else if(e.key==='PageDown'){ e.preventDefault(); page=Math.min(totalPages, page+1); sel=0; render(); }
-        else if(e.key==='PageUp'){ e.preventDefault(); page=Math.max(1, page-1); sel=0; render(); }
-        else if(e.key==='Home'){ e.preventDefault(); sel=0; updateSel(); }
-        else if(e.key==='End'){ e.preventDefault(); sel=rows.length-1; updateSel(); }
-        else if(e.key==='Enter'){ e.preventDefault(); showDetails(slice[sel]); }
+        function applySelection(rowsLocal, base){ rowsLocal.forEach((el,j)=>{ const idx = base + j; const isSel = selected.has(idx); el.classList.toggle('selected', isSel); el.setAttribute('aria-selected', isSel?'true':'false'); el.setAttribute('tabindex', idx===sel?'0':'-1'); }); const focusEl = rowsLocal[Math.max(0, sel-firstIdx)]; focusEl && focusEl.focus({preventScroll:true}); }
+        // Initial paint selection
+        applySelection(rows, firstIdx);
+      }
+      vbody.onscroll = draw;
+      draw();
+      vbody.onkeydown = (e)=>{
+        const step = Math.floor(vbody.clientHeight/ROW_H) || 10;
+        if(e.key==='a' && (e.ctrlKey || e.metaKey)){
+          e.preventDefault(); selected.clear(); for(let i=0;i<sorted.length;i++) selected.add(i); sel = Math.min(sel, sorted.length-1); draw(); return;
+        }
+        if(e.key==='ArrowDown'){
+          e.preventDefault(); const prev = sel; sel=Math.min(sorted.length-1, sel+1);
+          if(e.shiftKey){ if(anchor===null) anchor=prev; selected.clear(); const a=Math.min(anchor, sel), b=Math.max(anchor, sel); for(let k=a;k<=b;k++) selected.add(k);} else { anchor=sel; }
+          draw();
+        } else if(e.key==='ArrowUp'){
+          e.preventDefault(); const prev = sel; sel=Math.max(0, sel-1);
+          if(e.shiftKey){ if(anchor===null) anchor=prev; selected.clear(); const a=Math.min(anchor, sel), b=Math.max(anchor, sel); for(let k=a;k<=b;k++) selected.add(k);} else { anchor=sel; }
+          draw();
+        } else if(e.key==='PageDown'){
+          e.preventDefault(); const prev = sel; sel=Math.min(sorted.length-1, sel + step);
+          if(e.shiftKey){ if(anchor===null) anchor=prev; selected.clear(); const a=Math.min(anchor, sel), b=Math.max(anchor, sel); for(let k=a;k<=b;k++) selected.add(k);} else { anchor=sel; }
+          draw();
+        } else if(e.key==='PageUp'){
+          e.preventDefault(); const prev = sel; sel=Math.max(0, sel - step);
+          if(e.shiftKey){ if(anchor===null) anchor=prev; selected.clear(); const a=Math.min(anchor, sel), b=Math.max(anchor, sel); for(let k=a;k<=b;k++) selected.add(k);} else { anchor=sel; }
+          draw();
+        } else if(e.key==='Home'){
+          e.preventDefault(); sel=0; if(e.shiftKey){ if(anchor===null) anchor=0; selected.clear(); for(let k=0;k<=anchor;k++) selected.add(k);} else { selected.clear(); selected.add(sel); anchor=sel; } vbody.scrollTop=0; draw();
+        } else if(e.key==='End'){
+          e.preventDefault(); sel=sorted.length-1; if(e.shiftKey){ if(anchor===null) anchor=sel; selected.clear(); const a=Math.min(anchor, sel), b=Math.max(anchor, sel); for(let k=a;k<=b;k++) selected.add(k);} else { selected.clear(); selected.add(sel); anchor=sel; } vbody.scrollTop = sorted.length*ROW_H; draw();
+        } else if(e.key==='Enter'){
+          e.preventDefault(); showDetails(sorted[sel]);
+        }
       };
     }
     document.getElementById('prev').addEventListener('click',()=>{ if(page>1){ page--; render(); }});
     document.getElementById('next').addEventListener('click',()=>{ page++; render(); });
-    qEl.addEventListener('input', e=>{ query = e.target.value; page=1; render(); });
+    qEl.addEventListener('input', e=>{ query = e.target.value; saveState(); page=1; render(); });
     document.getElementById('pageSize').addEventListener('change', e=>{ PAGE_SIZE = parseInt(e.target.value,10)||100; page=1; render(); });
     document.querySelectorAll('thead th').forEach(th=>{
       th.addEventListener('click',()=>{
@@ -326,6 +420,17 @@ HTML_HEAD
         render();
       });
     });
+    function buildColPicker(){
+      const holder = document.getElementById('colpicker');
+      holder.innerHTML = cols.map(c=>`<label class="opt"><input type="checkbox" data-ckey="${c.key}" ${c.on?'checked':''}><span>${c.label}</span></label>`).join('');
+      holder.querySelectorAll('input').forEach(inp=>{
+        inp.addEventListener('change', e=>{
+          const k = e.target.getAttribute('data-ckey');
+          const c = cols.find(x=>x.key===k); if(!c) return; c.on = e.target.checked; activeCls(); saveState(); render();
+        });
+      });
+      activeCls();
+    }
     function buildFacets(){
       const vset = new Set(); const eset = new Set(); const mset = new Set(); const oset = new Set();
       DATA.forEach(r=>{ const v=(get(r,'security.verdict')||'').toLowerCase(); if(v) vset.add(v); eset.add(extOf(r.name||'')); const mm=(get(r,'type.mime')||'').split(';')[0].toLowerCase(); if(mm) mset.add(mm); const oo=(get(r,'owner.user')||'').toLowerCase(); if(oo) oset.add(oo); });
@@ -337,6 +442,7 @@ HTML_HEAD
             const val = e.target.value;
             const coll = filters[facet];
             if(e.target.checked) coll.add(val); else coll.delete(val);
+            saveState();
             page=1; render();
           });
         });
@@ -346,8 +452,8 @@ HTML_HEAD
       mk(facetMime, mset, 'mime');
       mk(facetOwner, oset, 'owner');
       function toEpoch(d){ if(!d) return null; const t = Date.parse(d); return isNaN(t)? null : Math.floor(t/1000); }
-      dateFrom && dateFrom.addEventListener('change', e=>{ filters.from = toEpoch(e.target.value); page=1; render(); });
-      dateTo && dateTo.addEventListener('change', e=>{ const t = Date.parse(e.target.value); filters.to = isNaN(t)? null : Math.floor(t/1000)+86399; page=1; render(); });
+      dateFrom && dateFrom.addEventListener('change', e=>{ filters.from = toEpoch(e.target.value); saveState(); page=1; render(); });
+      dateTo && dateTo.addEventListener('change', e=>{ const t = Date.parse(e.target.value); filters.to = isNaN(t)? null : Math.floor(t/1000)+86399; saveState(); page=1; render(); });
     }
     function downloadJSON(){
       const filtered = applyFilter(DATA);
@@ -392,8 +498,28 @@ HTML_HEAD
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'finfo-data.yaml'; a.click(); URL.revokeObjectURL(a.href);
     }
     document.getElementById('dlyaml').addEventListener('click', downloadYAML);
+    function copyToClipboard(text){ const ta=document.createElement('textarea'); ta.value=text; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta); }
+    function getSelectedRows(){
+      if(!sortedCache || !sortedCache.length) return [];
+      const out = [];
+      if(selected.size===0){ out.push(sortedCache[sel]); return out; }
+      selected.forEach(i=>{ if(i>=0 && i<sortedCache.length) out.push(sortedCache[i]); });
+      return out;
+    }
+    document.getElementById('copyjson').addEventListener('click', ()=>{
+      const rows = getSelectedRows();
+      const txt = JSON.stringify(rows, null, 2);
+      copyToClipboard(txt);
+    });
+    document.getElementById('copyyaml').addEventListener('click', ()=>{
+      const rows = getSelectedRows();
+      const y = toYAML(rows, '');
+      copyToClipboard(y);
+    });
 
+    loadState();
     buildFacets();
+    buildColPicker();
     const overlay = document.getElementById('overlay');
     const close = document.getElementById('close');
     close.addEventListener('click', ()=> overlay.style.display='none');

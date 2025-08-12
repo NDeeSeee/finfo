@@ -702,10 +702,13 @@ finfo() {
     local j_rel; j_rel=$(_json_escape "$rel_path")
     local j_type; j_type=$(_json_escape "$file_desc")
     local j_charset; j_charset=$(_json_escape "$charset")
+    local j_mime; j_mime=$(_json_escape "$mime_line")
     local j_perms; j_perms=$(_json_escape "$perms_sym")
     local j_permexp; j_permexp=$(_json_escape "$perm_hint")
     local j_created; j_created=$(_json_escape "$created_at")
     local j_modified; j_modified=$(_json_escape "$modified_at")
+    local j_created_epoch; j_created_epoch=$(_json_escape "$created_epoch")
+    local j_modified_epoch; j_modified_epoch=$(_json_escape "$modified_epoch")
     local j_branch; j_branch=$(_json_escape "$branch")
     local j_gitflag; j_gitflag=$(_json_escape "$git_flag")
     local j_link; j_link=$(_json_escape "$link_target")
@@ -715,6 +718,9 @@ finfo() {
     local j_headings=$(_json_escape "$ft_headings")
     local j_columns=$(_json_escape "$ft_columns")
     local j_about; j_about=$(_json_escape "$about_str")
+    local owner_only="${owner_group%%:*}"; local group_only="${owner_group#*:}"
+    local j_owner; j_owner=$(_json_escape "$owner_only")
+    local j_group; j_group=$(_json_escape "$group_only")
     # Build arrays
     local -a qual_lines act_lines
     local qa_json="["; local first=1; local q
@@ -728,14 +734,15 @@ finfo() {
       (( first )) || ac_json+=" ,"; first=0; ac_json+="\"$aa\""
     done; ac_json+="]"
     local risk_block=""; if (( opt_risk )); then risk_block=",\"risk\":{\"score\":0,\"why\":\"stub\"}"; fi
-    printf '{"name":"%s","path":{"abs":"%s","rel":"%s"},"is_dir":%s,"type":{"description":"%s","is_text":"%s","charset":"%s"},"size":{"bytes":%s,"human":"%s"},"lines":%s,"perms":{"symbolic":"%s","octal":"%s","explain":"%s"},"dates":{"created":"%s","modified":"%s"},"git":{"present":%s,"branch":"%s","status":"%s"},"security":{"gatekeeper":"%s","codesign":{"signed":%s,"status":"%s","team":"%s"},"notarization":"%s","quarantine":"%s","where_froms":"%s","verdict":"%s"},"links":{"hardlinks":%s},"symlink":{"is_symlink":%s,"target":"%s","target_exists":%s},"dir":{"num_dirs":%s,"num_files":%s,"size_human":"%s"},"filetype":{"pages":%s,"headings":%s,"columns":%s,"delimiter":"%s","image_dims":"%s"},"about":"%s","quality":%s,"actions":%s%s}\n' \
+    printf '{"name":"%s","path":{"abs":"%s","rel":"%s"},"is_dir":%s,"type":{"description":"%s","is_text":"%s","charset":"%s","mime":"%s"},"size":{"bytes":%s,"human":"%s"},"lines":%s,"owner":{"user":"%s","group":"%s"},"perms":{"symbolic":"%s","octal":"%s","explain":"%s"},"dates":{"created":"%s","modified":"%s","created_epoch":%s,"modified_epoch":%s},"git":{"present":%s,"branch":"%s","status":"%s"},"security":{"gatekeeper":"%s","codesign":{"signed":%s,"status":"%s","team":"%s"},"notarization":"%s","quarantine":"%s","where_froms":"%s","verdict":"%s"},"links":{"hardlinks":%s},"symlink":{"is_symlink":%s,"target":"%s","target_exists":%s},"dir":{"num_dirs":%s,"num_files":%s,"size_human":"%s"},"filetype":{"pages":%s,"headings":%s,"columns":%s,"delimiter":"%s","image_dims":"%s"},"about":"%s","quality":%s,"actions":%s%s}\n' \
       "$j_name" "$j_abs" "$j_rel" \
       $([[ -d "$target" ]] && echo true || echo false) \
-      "$j_type" "$is_text" "$j_charset" \
+       "$j_type" "$is_text" "$j_charset" "$j_mime" \
       "${size_bytes:-0}" "$size_human" \
       $([[ -n "$lc" ]] && echo "$lc" || echo null) \
+       "$j_owner" "$j_group" \
       "$j_perms" "${perms_oct:-}" "$j_permexp" \
-      "$j_created" "$j_modified" \
+       "$j_created" "$j_modified" ${created_epoch:-null} ${modified_epoch:-null} \
       $([[ -n "$branch" ]] && echo true || echo false) "$j_branch" "$j_gitflag" \
       "$gk_assess" $(( cs_signed ? 1 : 0 )) "$cs_status" "$cs_team" "$nota_stapled" "$([[ -n "$qstr" ]] && echo yes || echo no)" "$(_json_escape "$froms")" "$verdict" \
       $([[ -n "$link_count" && "$link_count" == <-> ]] && echo "$link_count" || echo null) \
