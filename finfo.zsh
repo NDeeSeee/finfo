@@ -159,6 +159,9 @@ finfo() {
   # Subcommand: ls [DIR] → modern directory listing (eza/exa if present)
   if [[ "$1" == ls ]]; then shift; finfo_cmd_ls "$1"; _cleanup; return $?; fi
 
+  # Subcommand: browse|tui [PATH…] → interactive browser (fzf) or minimal TUI
+  if [[ "$1" == browse || "$1" == tui ]]; then shift; finfo_browse "$@"; _cleanup; return $?; fi
+
   # Subcommand: html --dashboard [PATH…] → export dashboard to dist/index.html
   if [[ "$1" == html ]]; then
     shift
@@ -582,9 +585,8 @@ finfo() {
       _section "ACTIONS" actions
       local -A seen_map=()
       local line
-      # Ensure xtrace is off in this block to avoid leaking debug lines
-      local __was_xtrace=0
-      if [[ -o xtrace ]]; then __was_xtrace=1; set +x; fi
+      # Force xtrace off while rendering action lines to prevent debug leakage
+      set +x
       for line in "${act_lines[@]}"; do
         [[ -z "$line" ]] && continue
         if [[ -z ${seen_map[$line]:-} ]]; then
@@ -595,7 +597,7 @@ finfo() {
           printf "  %s%s %s%s\n" "$_color_out" "$_icon_out" "$line" "$RESET"
         fi
       done
-      if (( __was_xtrace )); then set -x; fi
+      :
     fi
     fi
   # 7) Tips (1 line max, contextual)

@@ -13,10 +13,17 @@ _tui_collect_paths() {
       out+=( "$p" )
     elif [[ -d "$p" ]]; then
       local IFS=$'\n'
-      for f in $(command find "$p" -type f 2>/dev/null); do
-        out+=( "$f" )
-        (( ${#out[@]} >= max )) && break
-      done
+      if command -v fd >/dev/null 2>&1; then
+        # fd respects .gitignore and is faster
+        for f in $(fd --type f --hidden --follow --color never . "$p" 2>/dev/null | head -n $max); do
+          out+=( "$f" )
+        done
+      else
+        for f in $(command find "$p" -type f 2>/dev/null); do
+          out+=( "$f" )
+          (( ${#out[@]} >= max )) && break
+        done
+      fi
     fi
     (( ${#out[@]} >= max )) && break
   done
@@ -69,6 +76,57 @@ finfo_browse() {
       --delimiter=$'\t' --multi --preview-window=right:70% \
       --preview '"$FINFOROOT/finfo.zsh" --long -- {6}' < "$tmp"
   rm -f "$tmp"
+}
+
+
+# Minimal interactive TUI (pure zsh; no deps). Keys: j/k or arrows to move, Enter to view, o open, C copy path, E reveal (macOS), q quit.
+finfo_tui() {
+  emulate -L zsh
+  setopt pipefail
+  if ! [[ -t 1 ]]; then
+    echo "Not a TTY; falling back to table" 1>&2
+    finfo_table "$@"; return
+  fi
+  local -a files; files=( $(_tui_collect_paths "$@") )
+  local n=${#files[@]}
+  (( n == 0 )) && { echo "No files"; return; }
+  local idx=1 key
+  local cols; cols=$(tput cols 2>/dev/null || echo 120)
+  _draw_list() {
+    command clear
+    printf " %s finfo (minimal) — %d items%s\n" "$BOLD$BLUE" $n "$RESET"
+    local i start=1 stop=n maxitems=20
+    # Window around idx
+    if (( n > maxitems )); then
+      start=$(( idx - maxitems/2 )); (( start < 1 )) && start=1
+      stop=$(( start + maxitems - 1 )); (( stop > n )) && { stop=$n; start=$(( n - maxitems + 1 )); }
+    fi
+    for i in {$start..$stop}; do
+      local mark="  "; (( i == idx )) && mark="> "
+      printf "%s%s%s%s\n" "$mark" "$VALUE" "${files[i]}" "$RESET"
+    done
+    printf "\n  %sUp/Down, j/k%s  Enter: view  o: open  C: copy  E: reveal  q: quit\n" "$DIM" "$RESET"
+  }
+  while :; do
+    _draw_list
+    read -sk 1 key || break
+    case "$key" in
+      $'A'|k) (( idx>1 )) && ((idx--));;               # up (arrow A when using read -sk can vary; keep k/j primary)
+      $'B'|j) (( idx<n )) && ((idx++));;               # down
+      '') # Enter
+        command clear
+        "$FINFOROOT/finfo.zsh" --long -- "${files[idx]}" || true
+        printf "\n%s[Press any key to return]%s" "$DIM" "$RESET"; read -sk 1 _; ;;
+      o)
+        if command -v open >/dev/null 2>&1; then open -- "${files[idx]}" >/dev/null 2>&1 || true
+        elif command -v xdg-open >/dev/null 2>&1; then xdg-open "${files[idx]}" >/dev/null 2>&1 || true
+        fi;;
+      C) print -rn -- "${files[idx]:A}" | { command -v pbcopy >/dev/null 2>&1 && pbcopy || command -v wl-copy >/dev/null 2>&1 && wl-copy || command -v xclip >/dev/null 2>&1 && xclip -selection clipboard || cat; } ;;
+      E) command -v open >/dev/null 2>&1 && open -R -- "${files[idx]}" >/dev/null 2>&1 || true ;;
+      q) break;;
+      *) : ;;
+    esac
+  done
 }
 
 
