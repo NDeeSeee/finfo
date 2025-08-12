@@ -42,12 +42,12 @@ echo "$PNG_B64" | base64 --decode > "$FX/sample.png" 2>/dev/null || echo "$PNG_B
 # Helper to capture and normalize porcelain
 run_porc() {
   local target="$1"; shift
-  "$FINFO" --porcelain --no-git --no-icons --unit bytes -- "$target" | zsh "$NORM_P"
+  "$FINFO" --porcelain --no-git --no-icons --unit bytes -- "$target" 2>/dev/null | zsh "$NORM_P"
 }
 
 run_json() {
   local target="$1"; shift
-  "$FINFO" --json --no-git --no-icons --unit bytes -- "$target" | zsh "$NORM_J"
+  "$FINFO" --json --no-git --no-icons --unit bytes -- "$target" 2>/dev/null | zsh "$NORM_J"
 }
 
 # Generate current outputs

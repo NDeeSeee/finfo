@@ -58,8 +58,23 @@ Install these to unlock richer output, nicer UX, or developer convenience. finfo
 - Fonts (icons in headers/sections): Nerd Fonts (e.g., Hack Nerd Font)
   - Download from https://www.nerdfonts.com and enable in your terminal profile
   - Optional: export `FINFONERD=1` to force icon mode
-- Fuzzy/picker (future/optional): `fzf`
+- Fuzzy picker and interactive TUI: `fzf`
   - macOS: `brew install fzf`
+  - Debian/Ubuntu: `sudo apt-get install -y fzf`
+- JSON processor: `jq`
+  - macOS: `brew install jq`
+  - Debian/Ubuntu: `sudo apt-get install -y jq`
+- Visual scripting aids (optional): `gum`
+  - macOS: `brew install gum`
+  - Debian/Ubuntu: `sudo apt-get install -y gum` (or from project releases)
+- Prompt/theme comfort (optional): Powerlevel10k
+  - Repo: https://github.com/romkatv/powerlevel10k
+  - Install: `git clone --depth=1 https://github.com/romkatv/powerlevel10k.git ${ZSH_CUSTOM:-$HOME/.oh-my-zsh/custom}/themes/powerlevel10k`
+  - Enable in `~/.zshrc`: `ZSH_THEME="powerlevel10k/powerlevel10k"`
+- zsh plugins (optional):
+  - zsh-syntax-highlighting: https://github.com/zsh-users/zsh-syntax-highlighting
+  - zsh-autosuggestions: https://github.com/zsh-users/zsh-autosuggestions
+  - Enable via `plugins=(... zsh-syntax-highlighting zsh-autosuggestions)` in `~/.zshrc`
 
 ## Developer/test dependencies
 

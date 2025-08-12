@@ -1,0 +1,6 @@
+/* Theme tokens for future external bundle use (dashboard inlines equivalents) */
+:root{--bg:#0f1115;--panel:#151822;--text:#e6e6e6;--muted:#9aa4b2;--accent:#7cc0ff;--good:#70e000;--warn:#ffd166;--bad:#ff6b6b;--tableStripe:#111520}
+@media (prefers-color-scheme: light){:root{--bg:#fafafa;--panel:#ffffff;--text:#0f1115;--muted:#5b6572;--accent:#0b6bcb;--good:#2a7;--warn:#b67b00;--bad:#c43;--tableStripe:#f3f5f7}}
+body{margin:0;font:14px/1.4 ui-monospace, Menlo, Consolas, "Liberation Mono", monospace;background:var(--bg);color:var(--text)}
+
+

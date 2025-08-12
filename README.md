@@ -92,6 +92,31 @@ pages, headings, columns, delimiter, image_dims, about
 
 See `dependencies/README.md` for essential and optional tools (install commands for macOS and Linux), fonts, and environment variables. finfo degrades gracefully when extras are missing.
 
+## Dashboard export
+
+Quickly produce a single-file HTML dashboard:
+
+```bash
+./finfo.zsh html --dashboard .
+open dist/index.html # macOS
+```
+
+## Table and TUI
+
+- Pure zsh compact table:
+
+```bash
+source ./finfo.zsh
+finfo_table .
+```
+
+- Interactive browser (uses fzf + jq when present; falls back to the table):
+
+```bash
+source ./finfo.zsh
+finfo_browse .
+```
+
 ## Install
 
 Quick local install (links `finfo` into `~/bin` and checks environment):
