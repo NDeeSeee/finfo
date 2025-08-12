@@ -245,136 +245,13 @@ finfo() {
   set -- "${argv_new[@]}"
 
   # Subcommand: diff A B → side-by-side metadata diff (porcelain-based)
-  if [[ "$1" == diff ]]; then
-    shift
-    local A="$1" B="$2"
-    if [[ -z "$A" || -z "$B" ]]; then
-      echo "Usage: finfo diff A B"; _cleanup; return 2
-    fi
-    _finfo_colors; _apply_theme "${FINFOTHEME:-default}"
-    local LABEL="$THEME_LABEL" VALUE="$THEME_VALUE" RESET="$RESET"
-    _section "DIFF" type
-    # Collect porcelain maps
-    local outA outB
-    outA=$(finfo --porcelain --no-git -- "$A" 2>/dev/null)
-    outB=$(finfo --porcelain --no-git -- "$B" 2>/dev/null)
-    if [[ -z "$outA" || -z "$outB" ]]; then
-      echo "${RED}✗${RESET} unable to diff (missing data)"; _cleanup; return 1
-    fi
-    typeset -A mA mB
-    local line key val
-    while IFS=$'\t' read -r key val; do [[ -z "$key" ]] && continue; mA[$key]="$val"; done <<< "$outA"
-    while IFS=$'\t' read -r key val; do [[ -z "$key" ]] && continue; mB[$key]="$val"; done <<< "$outB"
-    # Keys of interest (order)
-    local -a keys=( name type size_bytes size_human lines mime uttype owner_group perms_sym perms_oct created modified accessed rel abs symlink hardlinks git_branch git_status quarantine where_froms sha256 blake3 )
-    local printed=0
-    for key in "${keys[@]}"; do
-      local va="${mA[$key]:-}" vb="${mB[$key]:-}"
-      if [[ -n "$va$vb" && "$va" != "$vb" ]]; then
-        printf "  %s%-*s %s → %s%s\n" "$LABEL" 12 "${key}:" "$va" "$vb" "$RESET"
-        printed=1
-      fi
-    done
-    (( printed == 0 )) && printf "  %s%-*s %s\n" "$LABEL" 12 "result:" "${VALUE}no differences in selected fields${RESET}"
-    _cleanup; return 0
-  fi
+  if [[ "$1" == diff ]]; then shift; finfo_cmd_diff "$1" "$2"; _cleanup; return $?; fi
 
   # Subcommand: watch PATH → live sample of size/mtime/xattrs (Ctrl-C to stop)
-  if [[ "$1" == watch ]]; then
-    shift; local W="$1"; local interval="${2:-1}"
-    [[ -z "$W" ]] && { echo "Usage: finfo watch PATH [interval_s]"; _cleanup; return 2; }
-    [[ "$interval" != <-> || $interval -lt 1 ]] && interval=1
-    if [[ ! -e "$W" ]]; then echo "${RED}✗${RESET} not found: $W"; _cleanup; return 1; fi
-    _finfo_colors; _apply_theme "${FINFOTHEME:-default}"; local LABEL="$THEME_LABEL" VALUE="$THEME_VALUE"
-    echo "Watching $W every ${interval}s — Ctrl-C to stop"
-    local last_sz last_mtime last_q
-    while :; do
-      local sz mt q=""
-      if [[ $OSTYPE == darwin* ]]; then
-        local sb="/usr/bin/stat"; [[ -x $sb ]] || sb="stat"
-        sz=$($sb -f '%z' -- "$W" 2>/dev/null)
-        mt=$($sb -f '%Sm' -t '%b %d %Y %H:%M:%S' -- "$W" 2>/dev/null)
-      else
-        sz=$(stat -c '%s' -- "$W" 2>/dev/null)
-        mt=$(stat -c '%y' -- "$W" 2>/dev/null)
-      fi
-      if command -v xattr >/dev/null 2>&1; then q=$(xattr -p com.apple.quarantine "$W" 2>/dev/null | sed 's/.*/yes/'); fi
-      if [[ "$sz" != "$last_sz" || "$mt" != "$last_mtime" || "$q" != "$last_q" ]]; then
-        printf "  %s%-*s %s  %s%-*s %s  %s%-*s %s\n" \
-          "$LABEL" 12 "size:" "$VALUE$sz$RESET" \
-          "$LABEL" 12 "modified:" "$VALUE${mt:-–}$RESET" \
-          "$LABEL" 12 "quarantine:" "$VALUE${q:-no}$RESET"
-        last_sz="$sz"; last_mtime="$mt"; last_q="$q"
-      fi
-      sleep "$interval" || break
-    done
-    _cleanup; return 0
-  fi
+  if [[ "$1" == watch ]]; then shift; finfo_cmd_watch "$1" "$2"; _cleanup; return $?; fi
 
   # Subcommand: chmod PATH → interactive chmod helper (arrow-based)
-  if [[ "$1" == chmod ]]; then
-    shift; local T="$1"; [[ -z "$T" ]] && { echo "Usage: finfo chmod PATH"; _cleanup; return 2; }
-    if [[ ! -e "$T" ]]; then echo "${RED}✗${RESET} not found: $T"; _cleanup; return 1; fi
-    # Read current perms
-    local psym poct
-    if [[ $OSTYPE == darwin* ]]; then psym=$(/usr/bin/stat -f '%Sp' -- "$T" 2>/dev/null); poct=$(/usr/bin/stat -f '%p' -- "$T" 2>/dev/null)
-    else psym=$(stat -c '%A' -- "$T" 2>/dev/null); poct=$(stat -c '%a' -- "$T" 2>/dev/null); fi
-    # Build mutable flags for u/g/o r,w,x (9 toggles)
-    local flags="${psym[2,10]}" # e.g. rwxr-xr--
-    local pos=1
-    _render() {
-      local buf="${flags}"; local u=${buf[1,3]} g=${buf[4,6]} o=${buf[7,9]}
-      local expl; expl=$(_perm_explain "$T")
-      local oct=""; oct=$(_chmod_flags_to_octal "$buf")
-      printf "\n  %sInteractive chmod for:%s %s\n" "$BOLD" "$RESET" "$T"
-      printf "  perms: %s%s%s  %s(u)%s%s  %s(g)%s%s  %s(o)%s%s\n" "$BOLD" "$flags" "$RESET" "$DIM" "$RESET" "$u" "$DIM" "$RESET" "$g" "$DIM" "$RESET" "$o"
-      printf "  octal: %s%s%s    explain: %s\n" "$BOLD" "$oct" "$RESET" "$expl"
-      printf "  Use arrows to move, space to toggle; s=save, q=quit without changes\n"
-      # caret under position
-      local pad=$(( pos + 8 )) # account for "perms: " prefix length
-      printf "  perms: "; local i=1; while (( i<=9 )); do if (( i==pos )); then printf "%s^%s" "$YELLOW" "$RESET"; else printf " "; fi; (( i++ )); done; printf "\n"
-    }
-    _chmod_flags_to_octal() {
-      local s="$1"; local u=${s[1,3]} g=${s[4,6]} o=${s[7,9]}
-      _trip() { local t="$1"; local n=0; [[ ${t[1]} == r ]] && ((n+=4)); [[ ${t[2]} == w ]] && ((n+=2)); [[ ${t[3]} == x ]] && ((n+=1)); echo -n "$n"; }
-      printf "%s%s%s" "$(_trip "$u")" "$(_trip "$g")" "$(_trip "$o")"
-    }
-    stty -echo -icanon time 0 min 0 2>/dev/null || true
-    local ch changed=0
-    while :; do
-      tput civis 2>/dev/null || true
-      _render
-      read -r -k 1 ch
-      if [[ -z "$ch" ]]; then tput el 2>/dev/null || true; sleep 0.05; printf "\r"; continue; fi
-      case "$ch" in
-        q) printf "\n"; stty sane 2>/dev/null || true; tput cnorm 2>/dev/null || true; _cleanup; return 0;;
-        s)
-          local oct; oct=$(_chmod_flags_to_octal "$flags")
-          printf "\nApply chmod %s%s%s to %s? [y/N] " "$BOLD" "$oct" "$RESET" "$T"
-          local ans; read -r ans; if [[ "$ans" == [yY] ]]; then chmod "$oct" -- "$T" && echo "Applied."; fi
-          stty sane 2>/dev/null || true; tput cnorm 2>/dev/null || true; _cleanup; return 0;;
-        ' ')
-          local arr; arr=( ${(s::)flags} )
-          local idx=$pos; local cur=${arr[$idx]}
-          case "$cur" in r) arr[$idx]='-';; -) arr[$idx]='r';; w) arr[$idx]='-';; x) arr[$idx]='-';; esac
-          # smarter toggle: cycle through r/w/x depending on column
-          local col=$(( (pos-1)%3 ))
-          case $col in 0) arr[$idx]=$([[ $cur == r ]] && echo '-' || echo 'r');;
-                        1) arr[$idx]=$([[ $cur == w ]] && echo '-' || echo 'w');;
-                        2) arr[$idx]=$([[ $cur == x ]] && echo '-' || echo 'x');; esac
-          flags="${(j::)arr}"; changed=1;;
-        $'\x1b') # arrow sequence
-          read -r -k 2 ch
-          case "$ch" in
-            '[C') (( pos<9 )) && ((pos++)) ;;
-            '[D') (( pos>1 )) && ((pos--)) ;;
-            *) : ;;
-          esac;;
-        *) : ;;
-      esac
-      printf "\r\033[5A" 2>/dev/null || true
-    done
-  fi
+  if [[ "$1" == chmod ]]; then shift; finfo_cmd_chmod "$1"; _cleanup; return $?; fi
 
   typeset -a _o_n _o_J _o_Y _o_N _o_q _o_c _o_v _o_G _o_b _o_H _o_k _o_s _o_B _o_L _o_P _o_W _o_Z _o_R _o_r _o_m _o_d
   typeset -a _o_U
