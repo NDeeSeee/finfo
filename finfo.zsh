@@ -120,6 +120,10 @@ finfo() {
       --open)        argv_new+=(-O);;
       --edit)        shift; argv_new+=(-e "$1");;
       --reveal)      argv_new+=(-E);;
+      --copy-rel)    argv_new+=(-Y);;
+      --copy-dir)    argv_new+=(-D);;
+      --copy-hash)   shift; argv_new+=(-A "$1");;
+      --chmod)       shift; argv_new+=(-M "$1");;
       --html)        html_output=1;;
       --help)        show_help=1;;
       *)             argv_new+=("$1");;
@@ -137,9 +141,9 @@ finfo() {
   # Subcommand: chmod PATH → interactive chmod helper (arrow-based)
   if [[ "$1" == chmod ]]; then shift; finfo_cmd_chmod "$1"; _cleanup; return $?; fi
 
-  typeset -a _o_n _o_J _o_q _o_c _o_v _o_G _o_b _o_H _o_k _o_s _o_B _o_L _o_P _o_W _o_Z _o_R _o_r _o_m _o_d _o_K _o_T _o_X _o_C _o_O _o_E _o_e
+  typeset -a _o_n _o_J _o_q _o_c _o_v _o_G _o_b _o_H _o_k _o_s _o_B _o_L _o_P _o_W _o_Z _o_R _o_r _o_m _o_d _o_K _o_T _o_X _o_C _o_O _o_E _o_e _o_Y _o_D _o_A _o_M
   typeset -a _o_U
-  zparseopts -D -E n=_o_n J=_o_J q=_o_q c=_o_c v=_o_v G=_o_G b=_o_b H=_o_H k=_o_k s=_o_s B=_o_B L=_o_L P=_o_P W:=_o_W Z:=_o_Z U:=_o_U R=_o_R r=_o_r m=_o_m d=_o_d K=_o_K T:=_o_T X=_o_X C=_o_C O=_o_O E=_o_E e:=_o_e
+  zparseopts -D -E n=_o_n J=_o_J q=_o_q c=_o_c v=_o_v G=_o_G b=_o_b H=_o_H k=_o_k s=_o_s B=_o_B L=_o_L P=_o_P W:=_o_W Z:=_o_Z U:=_o_U R=_o_R r=_o_r m=_o_m d=_o_d K=_o_K T:=_o_T X=_o_X C=_o_C O=_o_O E=_o_E e:=_o_e Y=_o_Y D=_o_D A:=_o_A M:=_o_M
   local opt_no_color=$(( ${#_o_n} > 0 ))
   local opt_json=$(( ${#_o_J} > 0 ))
   local opt_quiet=$(( ${#_o_q} > 0 ))
@@ -168,6 +172,10 @@ finfo() {
   local opt_open=$(( ${#_o_O} > 0 ))
   local opt_reveal=$(( ${#_o_E} > 0 ))
   local opt_edit_app=""; (( ${#_o_e} > 0 )) && opt_edit_app="${_o_e[2]}"
+  local opt_copy_rel=$(( ${#_o_Y} > 0 ))
+  local opt_copy_dir=$(( ${#_o_D} > 0 ))
+  local copy_hash_algo=""; (( ${#_o_A} > 0 )) && copy_hash_algo="${_o_A[2]}"
+  local chmod_octal=""; (( ${#_o_M} > 0 )) && chmod_octal="${_o_M[2]}"
   local opt_html=${html_output:-0}
 
   # Long implies verbose, and enables keys panel unless explicitly disabled
@@ -180,7 +188,7 @@ finfo() {
   if [[ "$1" == "--" ]]; then shift; fi
 
   if (( show_help )); then
-    echo "Usage: finfo [--brief|--long|--porcelain|--json|--html] [--width N] [--hash sha256|blake3] [--unit bytes|iec|si] [--icons|--no-icons] [--git|--no-git] [--monitor] [--duplicates] [--keys|--no-keys] [--keys-timeout N] [--copy-path|-C] [--open|-O] [--reveal|-E] [--edit APP|-e APP] [--theme THEME] PATH..."
+    echo "Usage: finfo [--brief|--long|--porcelain|--json|--html] [--width N] [--hash sha256|blake3] [--unit bytes|iec|si] [--icons|--no-icons] [--git|--no-git] [--monitor] [--duplicates] [--keys|--no-keys] [--keys-timeout N] [--copy-path|-C] [--copy-rel] [--copy-dir] [--copy-hash ALGO] [--open|-O] [--reveal|-E] [--edit APP|-e APP] [--chmod OCTAL] [--theme THEME] PATH..."
     _cleanup; return 0
   fi
 
@@ -693,10 +701,39 @@ finfo() {
   # One-shot shortcuts (act on the first target only)
   if (( ${#targets[@]} >= 1 )); then
     local tgt="${targets[1]}"
+    local tgt_abs tgt_rel tgt_dir
+    tgt_abs="${tgt:A}"; tgt_rel="${tgt_abs:#$PWD/}"; [[ "$tgt_rel" == "$tgt_abs" ]] && tgt_rel="$tgt"
+    tgt_dir="${tgt_abs:h}"
     if (( opt_copy_path )); then
-      _clipboard_copy "${tgt:A}" >/dev/null 2>&1 || true
+      _clipboard_copy "$tgt_abs" >/dev/null 2>&1 || true
       if (( ! opt_json && ! opt_porcelain && ! opt_compact )); then
-        printf "  %s%s %-*s %s%s\n" "$LABEL" "$(_glyph info)" 12 "Notice:" "Copied path: ${PATHC}${tgt:A}${RESET}"
+        printf "  %s%s %-*s %s%s\n" "$LABEL" "$(_glyph info)" 12 "Notice:" "Copied path: ${PATHC}${tgt_abs}${RESET}"
+      fi
+    fi
+    if (( opt_copy_rel )); then
+      _clipboard_copy "$tgt_rel" >/dev/null 2>&1 || true
+      if (( ! opt_json && ! opt_porcelain && ! opt_compact )); then
+        printf "  %s%s %-*s %s%s\n" "$LABEL" "$(_glyph info)" 12 "Notice:" "Copied rel: ${PATHC}${tgt_rel}${RESET}"
+      fi
+    fi
+    if (( opt_copy_dir )); then
+      _clipboard_copy "$tgt_dir" >/dev/null 2>&1 || true
+      if (( ! opt_json && ! opt_porcelain && ! opt_compact )); then
+        printf "  %s%s %-*s %s%s\n" "$LABEL" "$(_glyph info)" 12 "Notice:" "Copied dir: ${PATHC}${tgt_dir}${RESET}"
+      fi
+    fi
+    if [[ -n "$copy_hash_algo" ]]; then
+      local _chk=""
+      _compute_checksum "$tgt_abs" "$copy_hash_algo"; _chk="$checksum_out"
+      if [[ -n "$_chk" ]]; then
+        _clipboard_copy "$_chk" >/dev/null 2>&1 || true
+        if (( ! opt_json && ! opt_porcelain && ! opt_compact )); then
+          printf "  %s%s %-*s %s%s\n" "$LABEL" "$(_glyph info)" 12 "Checksum:" "copied ${VALUE}${copy_hash_algo}${RESET} for ${PATHC}${tgt_abs}${RESET}"
+        fi
+      else
+        if (( ! opt_json && ! opt_porcelain && ! opt_compact )); then
+          printf "  %s%s %-*s %s%s\n" "$LABEL" "$(_glyph info)" 12 "Checksum:" "${YELLOW}unavailable${RESET}"
+        fi
       fi
     fi
     if (( opt_open )); then
@@ -721,6 +758,21 @@ finfo() {
         fi
         if (( ! opt_json && ! opt_porcelain && ! opt_compact )); then
           printf "  %s%s %-*s %s%s\n" "$LABEL" "$(_glyph try)" 12 "Edit:" "opened in ${VALUE}${app}${RESET}"
+        fi
+      fi
+    fi
+    if [[ -n "$chmod_octal" ]]; then
+      if [[ "$chmod_octal" =~ '^[0-7]{3,4}$' ]]; then
+        chmod -- "$chmod_octal" "$tgt_abs" 2>/dev/null || true
+        # Fetch new perms for confirmation
+        local new_perms="" new_octal="" _sb="" _statline=""
+        if [[ $OSTYPE == darwin* ]]; then _sb="/usr/bin/stat"; [[ -x $_sb ]] || _sb="stat"; _statline=$($_sb -f '%Sp|%p' -- "$tgt_abs" 2>/dev/null); IFS='|' read -r new_perms new_octal <<< "$_statline"; else _statline=$(stat -c '%A|%a' -- "$tgt_abs" 2>/dev/null); IFS='|' read -r new_perms new_octal <<< "$_statline"; fi
+        if (( ! opt_json && ! opt_porcelain && ! opt_compact )); then
+          printf "  %s%s %-*s %s%s\n" "$LABEL" "$(_glyph perms)" 12 "Chmod:" "set to ${VALUE}${new_perms}${RESET} ${DIM}(${new_octal})${RESET}"
+        fi
+      else
+        if (( ! opt_json && ! opt_porcelain && ! opt_compact )); then
+          printf "  %s%s %-*s %s\n" "$LABEL" "$(_glyph perms)" 12 "Chmod:" "${YELLOW}ignored invalid octal '${chmod_octal}'${RESET}"
         fi
       fi
     fi
