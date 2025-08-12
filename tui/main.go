@@ -453,6 +453,8 @@ func initialModelFromArgs(args []string) model {
             m.rebuildDirPage()
         } else if err == nil && !fi.IsDir() {
             m.singleFile = true
+            // Seed list with the file so preview can load immediately
+            l.SetItems([]list.Item{fileItem{path: args[0], isDir: false}})
         }
     }
     return m
