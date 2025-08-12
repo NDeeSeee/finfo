@@ -28,12 +28,20 @@ Planned reorg:
 
 ```bash
 finfo [--brief|--long|--porcelain|--json|--html] [--width N] [--hash sha256|blake3] \
-      [--unit bytes|iec|si] [--icons|--no-icons] [--git|--no-git] [--monitor] [--duplicates] PATH...
+      [--unit bytes|iec|si] [--icons|--no-icons] [--git|--no-git] [--monitor] [--duplicates] \
+      [--keys|--no-keys] [--keys-timeout N] PATH...
 
 finfo diff A B             # metadata diff (porcelain-based)
 finfo chmod PATH           # interactive chmod helper (arrows/space/s/q)
 finfo watch PATH [secs]    # live sample size/mtime/quarantine changes
 ```
+
+### Keys panel
+
+- `--keys` shows a KEYS panel at the bottom (TTY-only) and accepts a single keypress to run a shortcut.
+- `--long` auto-enables the KEYS panel unless `--no-keys` is passed.
+- `--keys-timeout N` controls how long to wait for a keypress (default 5s).
+- Shortcuts: `o` open in default app, `r` reveal in Finder, `p` copy absolute path, `q` quit.
 
 ## JSON schema (selected)
 
@@ -79,3 +87,11 @@ pages, headings, columns, delimiter, image_dims, about
 - Use `--unit bytes|iec|si` to control human size units in pretty output
 - Set `FINFO_TOPN` to adjust Top-N largest files in SUMMARY (default 5)
 - macOS integrations (mdls, sips, spctl, codesign, stapler, xattr) are best-effort and guarded
+
+## Tests
+
+Run the tiny golden test harness (requires `zsh`, JSON tests use `jq` when available):
+
+```bash
+./tests/run.zsh
+```

@@ -83,6 +83,11 @@ Planned new modules (iconic features):
 - `_redact.zsh`: Multimodal redaction and prompt‑injection checks
 - `_dashboard.zsh`: Rich HTML dashboard/static site exporter
 - `_index.zsh`: Catalog/SQLite/JSONL indexer and updater
+ - `_cause.zsh`: Causal diff explainer and change attribution
+ - `_lineage.zsh`: Data lineage inference (producer/consumer graph)
+ - `_sentinel.zsh`: Active integrity/ransomware sentinel
+ - `_packplan.zsh`: Packaging/transfer optimization planner
+ - `_policy.zsh`: Explainable policy/risk DSL engine
 
 Proposed near-term reorganizations:
 - Create `lib/cmd/` to host all subcommands; update sources accordingly
@@ -219,6 +224,36 @@ Proposed near-term reorganizations:
 - Artifacts: `dist/index.html`, `dist/assets/*`, `catalog.sqlite|catalog.jsonl`.
 - Acceptance: works offline, no trackers; incremental updates; themable.
 
+12) Causal diff explainer (why not just what)
+- Explain not only the diff between two targets, but likely causes (commit messages touching files, churn hotspots, dependency bumps, build logs). Provide triage/fix suggestions.
+- CLI: `finfo cause A B [--since DATE]`.
+- JSON addition: `cause:{ summary, factors:[{kind, weight, evidence}], suggested_actions[] }`.
+- Acceptance: deterministic factor list on same inputs; runs fast using local VCS metadata when present.
+
+13) Data lineage inference (producer/consumer graph)
+- Infer file/data lineage across notebooks, scripts, manifests, and path conventions; output a graph with confidence per edge.
+- CLI: `finfo lineage PATH|DIR [--depth N]`.
+- JSON addition: `lineage:{ graph, confidence }`.
+- Acceptance: safe heuristics by default; optionally consult git history for stronger edges.
+
+14) Active integrity sentinel (anti‑ransomware watch)
+- Watch a directory with FSEvents/inotify and rolling entropy/rename/extension spikes; flag ransomware‑like behavior; optional soft‑quarantine and backup hints.
+- CLI: `finfo sentinel DIR [--policy POLICY]`.
+- JSON addition: `sentinel:{ alerts:[{time, kind, path}], policy, actions[] }`.
+- Acceptance: low‑overhead watcher; no destructive default actions; clear, actionable alerts.
+
+15) Packaging/transfer optimizer
+- Simulate competing pack strategies (zip/zstd/7z, solid vs. non‑solid, split by size, dedup) and predict size/time/CPU; recommend the best plan with exact command lines.
+- CLI: `finfo packplan DIR [--target s3|ssh|gdrive]`.
+- JSON addition: `packplan:{ options:[{tool, est_size, est_time, cpu}], recommended }`.
+- Acceptance: estimates within acceptable error; recommendations match constraints.
+
+16) Policy/Risk DSL (explainable)
+- A simple DSL to codify organizational rules (e.g., `unsigned && quarantine && exec -> high`), producing explainable findings and a score.
+- CLI: `finfo policy --rules rules.finfo PATH…`.
+- JSON addition: `policy:{ findings:[{id, why}], score }`.
+- Acceptance: deterministic evaluation; clear Why chain; fast.
+
 ## Non-goals for now
 - Full Bubble Tea TUI; deep provenance timelines; AI summaries; heavy scanners
 - Exception: Phase 5 introduces opt-in, lightweight versions of risk scoring, summarization, and anomaly detection with strict guardrails and caching.
@@ -241,6 +276,11 @@ Proposed near-term reorganizations:
 - `similar_groups[]`: `[{rep, members:[{path, sim}]}]`
 - `provenance.dynamic_graph`: collapsed adjacency for eBPF trace
 - `catalog`: `{ entry_id, index_time, source_root }`
+ - `cause`: `{ summary, factors:[{kind, weight, evidence}], suggested_actions[] }`
+ - `lineage`: `{ graph, confidence }`
+ - `sentinel`: `{ alerts:[{time, kind, path}], policy, actions[] }`
+ - `packplan`: `{ options:[{tool, est_size, est_time, cpu}], recommended }`
+ - `policy`: `{ findings:[{id, why}], score }`
 
 ## Testing
 - Golden outputs for porcelain/json for: text file, archive, dir (small), Mach-O, symlink
@@ -263,7 +303,7 @@ Proposed near-term reorganizations:
 13) Phase 1.13: Move subcommands into `lib/cmd/` directory [DONE]
 14) Phase 1.14: Add docs/ with JSON schema and examples; tests/ with golden outputs [IN PROGRESS]
 15) Phase 1.15: KEYS panel and shortcut actions (`--keys`, `--keys-timeout`, `--no-keys`; auto in `--long`) [DONE]
-16) Phase 5 scaffolding: add module stubs `_risk.zsh`, `_summarize.zsh`, `_anomaly.zsh`, `_tui.zsh`, `_dashboard.zsh`, `_index.zsh`, `_dedupe.zsh`, `_attest.zsh`, `_sandbox.zsh`, `_trace.zsh`, `_redact.zsh` (lazy‑loaded) and extend JSON schema [PLANNED]
+16) Phase 5 scaffolding: add module stubs `_risk.zsh`, `_summarize.zsh`, `_anomaly.zsh`, `_tui.zsh`, `_dashboard.zsh`, `_index.zsh`, `_dedupe.zsh`, `_attest.zsh`, `_sandbox.zsh`, `_trace.zsh`, `_redact.zsh`, `_cause.zsh`, `_lineage.zsh`, `_sentinel.zsh`, `_packplan.zsh`, `_policy.zsh` (lazy‑loaded) and extend JSON schema [PLANNED]
 
 ## Risks and mitigations
 - Performance on large dirs: cap counts, show “approximate” beyond N entries
