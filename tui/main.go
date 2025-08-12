@@ -11,6 +11,8 @@ import (
     "os/exec"
     "path/filepath"
     "runtime"
+    "sort"
+    "strconv"
     "strings"
     "time"
 
@@ -234,7 +236,7 @@ const (
     modeOpsPreview
 )
 
-type previewMsg string
+type previewMsg struct{ seq int; out string }
 
 type model struct {
 	list    list.Model
@@ -265,6 +267,13 @@ type model struct {
     dirStack []string
     // Preview
     showPreview bool
+    // Preview async
+    previewSeq int
+    previewCancel context.CancelFunc
+    previewTimeout time.Duration
+    // Large dir management
+    dirAll []fileItem
+    dirCap int
 }
 
 type executedOp struct {
@@ -380,13 +389,18 @@ func initialModelFromArgs(args []string) model {
     sp.Spinner = spinner.Points
     th := themeFromEnv()
     ov := viewport.Model{ Width: 0, Height: 0 }
-    m := model{ list: l, preview: pv, help: help.New(), keys: defaultKeymap(), filter: in, long: true, mode: modeList, actions: acts, spin: sp, theme: th, originalArgs: append([]string{}, args...), opsOverlay: ov, showPreview: true }
+    timeoutMs := 1500
+    if v := os.Getenv("FINFOTUI_PREVIEW_MS"); v != "" {
+        if n, err := strconv.Atoi(v); err == nil && n > 100 { timeoutMs = n }
+    }
+    m := model{ list: l, preview: pv, help: help.New(), keys: defaultKeymap(), filter: in, long: true, mode: modeList, actions: acts, spin: sp, theme: th, originalArgs: append([]string{}, args...), opsOverlay: ov, showPreview: true, previewTimeout: time.Duration(timeoutMs) * time.Millisecond, dirCap: 5000 }
     // Enable directory-browsing mode when a single argument is a directory
     if len(args) == 1 {
         if fi, err := os.Stat(args[0]); err == nil && fi.IsDir() {
             m.browsing = true
             m.cwd = args[0]
             dirItems := scanDir(m.cwd)
+            sort.Slice(dirItems, func(i,j int) bool { if dirItems[i].isDir != dirItems[j].isDir { return dirItems[i].isDir } ; return strings.ToLower(filepath.Base(dirItems[i].path)) < strings.ToLower(filepath.Base(dirItems[j].path)) })
             li2 := make([]list.Item, len(dirItems))
             for i := range dirItems { li2[i] = dirItems[i] }
             m.list.SetItems(li2)
@@ -403,11 +417,18 @@ func (m model) loadPreview() tea.Cmd {
     if !m.showPreview || len(m.list.Items()) == 0 { return nil }
 	it, ok := m.list.SelectedItem().(fileItem)
 	if !ok { return nil }
-	args := finfoPreviewArgs(it.path, m.long)
+    // Cancel previous preview if running
+    if m.previewCancel != nil { m.previewCancel() }
+    args := finfoPreviewArgs(it.path, m.long)
+    seq := m.previewSeq + 1
+    m.previewSeq = seq
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second); defer cancel()
-		out, _ := runCmdTimeout(ctx, args[0], args[1:]...)
-		return previewMsg(out)
+        ctx, cancel := context.WithTimeout(context.Background(), m.previewTimeout)
+        // store cancel so next call can cancel in-flight
+        // Note: model is captured immutably; we pass seq to validate latest
+        out, _ := runCmdTimeout(ctx, args[0], args[1:]...)
+        cancel()
+        return previewMsg{seq: seq, out: out}
 	}
 }
 
@@ -555,9 +576,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         m.spin, cmd = m.spin.Update(msg)
         return m, cmd
     case previewMsg:
+        if msg.seq != m.previewSeq { return m, nil }
         // Try parse JSON, fallback to raw text
         var fj finfoJSON
-        s := string(msg)
+        s := msg.out
         m.lastPreviewRaw = s
         if err := json.Unmarshal([]byte(s), &fj); err == nil && fj.Name != "" {
             b := &strings.Builder{}
