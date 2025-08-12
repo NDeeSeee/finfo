@@ -162,6 +162,19 @@ source ./finfo.zsh
 finfo_browse .
 ```
 
+- Go TUI (alpha) with split view, action palette, multi-select, status bar, theming, and help overlay:
+
+```bash
+cd tui && go build -o finfotui ./...
+finfo tui .  # auto-launches if `finfotui` is found
+```
+
+Configure theme:
+
+```bash
+export FINFOTUI_THEME=default   # or mono|nord|dracula
+```
+
 ## Install
 
 Quick local install (links `finfo` into `~/bin` and checks environment):

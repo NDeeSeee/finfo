@@ -17,6 +17,7 @@ import (
     "github.com/charmbracelet/bubbles/help"
     "github.com/charmbracelet/bubbles/key"
     "github.com/charmbracelet/bubbles/list"
+    "github.com/charmbracelet/bubbles/spinner"
     "github.com/charmbracelet/bubbles/textinput"
     "github.com/charmbracelet/bubbles/viewport"
     tea "github.com/charmbracelet/bubbletea"
@@ -26,11 +27,17 @@ import (
 // ---------- Files and data ----------
 
 type fileItem struct{
-	path string
-	isDir bool
+    path     string
+    isDir    bool
+    selected bool
 }
 func (i fileItem) Title() string       { return filepath.Base(i.path) }
-func (i fileItem) Description() string { if i.isDir { return i.path + " — dir" }; return i.path }
+func (i fileItem) Description() string {
+    prefix := "[ ]"
+    if i.selected { prefix = "[x]" }
+    if i.isDir { return prefix + " " + i.path + " — dir" }
+    return prefix + " " + i.path
+}
 func (i fileItem) FilterValue() string { return i.path }
 
 func collectPaths(args []string, capCount int) ([]fileItem, error) {
@@ -44,10 +51,10 @@ func collectPaths(args []string, capCount int) ([]fileItem, error) {
 		fi, err := os.Stat(p)
 		if err != nil { continue }
 		if fi.IsDir() {
-			filepath.WalkDir(p, func(path string, d fs.DirEntry, err error) error {
+            filepath.WalkDir(p, func(path string, d fs.DirEntry, err error) error {
 				if err != nil { return nil }
 				if d.IsDir() { return nil }
-				push(path, false)
+                push(path, false)
 				if capCount > 0 && seen >= capCount { return errors.New("cap") }
 				return nil
 			})
@@ -130,7 +137,22 @@ type finfoJSON struct {
 // ---------- UI ----------
 
 type keymap struct {
-	Up, Down, Enter, Quit, ToggleLong, Actions, Copy, Open, Reveal, Chmod, ClearQ, Refresh, Help, Filter key.Binding
+    Up, Down, Enter, Quit, ToggleLong, Actions, Copy, Open, Reveal, Chmod, ClearQ, Refresh, Help, Filter, Select, SelectAll, ClearSel key.Binding
+}
+
+// Implement help.KeyMap
+func (k keymap) ShortHelp() []key.Binding {
+    return []key.Binding{k.Up, k.Down, k.Actions, k.Help, k.Quit}
+}
+
+func (k keymap) FullHelp() [][]key.Binding {
+    return [][]key.Binding{
+        {k.Up, k.Down, k.Filter},
+        {k.ToggleLong, k.Open, k.Reveal, k.Copy},
+        {k.Chmod, k.ClearQ, k.Refresh},
+        {k.Select, k.SelectAll, k.ClearSel},
+        {k.Actions, k.Help, k.Quit},
+    }
 }
 
 func defaultKeymap() keymap {
@@ -149,6 +171,9 @@ func defaultKeymap() keymap {
 		Refresh:    key.NewBinding(key.WithKeys("R"), key.WithHelp("R", "refresh")),
 		Help:       key.NewBinding(key.WithKeys("?"), key.WithHelp("?", "help")),
 		Filter:     key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "filter")),
+        Select:     key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "select")),
+        SelectAll:  key.NewBinding(key.WithKeys("A"), key.WithHelp("A", "select all")),
+        ClearSel:   key.NewBinding(key.WithKeys("V"), key.WithHelp("V", "clear selection")),
 	}
 }
 
@@ -157,6 +182,9 @@ const (
 	modeList mode = iota
 	modeDetail
 	modeChmod
+    modeActions
+    modeConfirm
+    modeHelp
 )
 
 type previewMsg string
@@ -170,11 +198,77 @@ type model struct {
 	status  string
 	long    bool
 	mode    mode
+    actions list.Model
+    jobs    jobs
+    spin    spinner.Model
+    theme   theme
 }
+
+type jobs struct {
+    running int
+    done    int
+    failed  int
+}
+
+type theme struct {
+    title lipgloss.Style
+    status lipgloss.Style
+    overlay lipgloss.Style
+}
+
+func defaultTheme() theme {
+    return theme{
+        title:  lipgloss.NewStyle().Foreground(lipgloss.Color("63")).Bold(true),
+        status: lipgloss.NewStyle().Faint(true),
+        overlay: lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(1, 2),
+    }
+}
+
+func themeFromEnv() theme {
+    name := os.Getenv("FINFOTUI_THEME")
+    if name == "" { return defaultTheme() }
+    t := defaultTheme()
+    switch strings.ToLower(name) {
+    case "mono", "plain":
+        t.title = lipgloss.NewStyle().Bold(true)
+        t.status = lipgloss.NewStyle()
+        t.overlay = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(1, 2)
+    case "nord":
+        t.title = lipgloss.NewStyle().Foreground(lipgloss.Color("110")).Bold(true)
+        t.status = lipgloss.NewStyle().Foreground(lipgloss.Color("245"))
+        t.overlay = lipgloss.NewStyle().BorderForeground(lipgloss.Color("110")).Border(lipgloss.RoundedBorder()).Padding(1, 2)
+    case "dracula":
+        t.title = lipgloss.NewStyle().Foreground(lipgloss.Color("171")).Bold(true)
+        t.status = lipgloss.NewStyle().Foreground(lipgloss.Color("244"))
+        t.overlay = lipgloss.NewStyle().BorderForeground(lipgloss.Color("171")).Border(lipgloss.RoundedBorder()).Padding(1, 2)
+    }
+    return t
+}
+
+// ---------- Actions ----------
+
+type action int
+
+const (
+    actOpen action = iota
+    actReveal
+    actCopy
+    actClearQ
+    actChmod
+)
+
+type actionItem struct {
+    name string
+    kind action
+}
+
+func (a actionItem) Title() string       { return a.name }
+func (a actionItem) Description() string { return "" }
+func (a actionItem) FilterValue() string { return a.name }
 
 func initialModelFromArgs(args []string) model {
 	items, _ := collectPaths(args, 5000)
-	l := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
+    l := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
 	li := make([]list.Item, len(items))
 	for i := range items { li[i] = items[i] }
 	l.SetItems(li)
@@ -182,18 +276,28 @@ func initialModelFromArgs(args []string) model {
 	l.SetShowStatusBar(false)
 	l.SetShowHelp(false)
 	l.SetFilteringEnabled(true)
-	pv := viewport.Model{ Width: 0, Height: 0 }
+    pv := viewport.Model{ Width: 0, Height: 0 }
 	pv.YPosition = 0
-	in := textinput.New(); in.Placeholder = "filter"; in.Prompt = "/ "; in.CharLimit = 256; in.Blur()
-	return model{ list: l, preview: pv, help: help.New(), keys: defaultKeymap(), filter: in, long: true, mode: modeList }
+    in := textinput.New(); in.Placeholder = "filter"; in.Prompt = "/ "; in.CharLimit = 256; in.Blur()
+    acts := list.New([]list.Item{
+        actionItem{name: "Open", kind: actOpen},
+        actionItem{name: "Reveal (macOS)", kind: actReveal},
+        actionItem{name: "Copy path(s)", kind: actCopy},
+        actionItem{name: "Clear quarantine", kind: actClearQ},
+        actionItem{name: "Change permissions (chmod)", kind: actChmod},
+    }, list.NewDefaultDelegate(), 0, 0)
+    sp := spinner.New()
+    sp.Spinner = spinner.Points
+    th := themeFromEnv()
+    return model{ list: l, preview: pv, help: help.New(), keys: defaultKeymap(), filter: in, long: true, mode: modeList, actions: acts, spin: sp, theme: th }
 }
 
 func (m model) Init() tea.Cmd {
-	return m.loadPreview()
+    return tea.Batch(m.loadPreview(), m.spin.Tick)
 }
 
 func (m model) loadPreview() tea.Cmd {
-	if m.list.Len() == 0 { return nil }
+    if len(m.list.Items()) == 0 { return nil }
 	it, ok := m.list.SelectedItem().(fileItem)
 	if !ok { return nil }
 	args := finfoPreviewArgs(it.path, m.long)
@@ -202,6 +306,75 @@ func (m model) loadPreview() tea.Cmd {
 		out, _ := runCmdTimeout(ctx, args[0], args[1:]...)
 		return previewMsg(out)
 	}
+}
+
+// Helper: determine target items (selected ones if any, otherwise current)
+func (m model) targetItems() []fileItem {
+    selected := make([]fileItem, 0, 8)
+    for i := 0; i < len(m.list.Items()); i++ {
+        if it, ok := m.list.Items()[i].(fileItem); ok && it.selected { selected = append(selected, it) }
+    }
+    if len(selected) > 0 { return selected }
+    if it, ok := m.list.SelectedItem().(fileItem); ok { return []fileItem{it} }
+    return nil
+}
+
+// Jobs messages
+type jobDoneMsg struct{ path string; act action; err error }
+
+func (m model) runActionOnTargets(act action) tea.Cmd {
+    targets := m.targetItems()
+    if len(targets) == 0 { return nil }
+    cmds := make([]tea.Cmd, 0, len(targets))
+    mstatus := ""
+    switch act {
+    case actCopy:
+        // Copy all paths as newline-joined (single job)
+        paths := make([]string, 0, len(targets))
+        for _, t := range targets { paths = append(paths, t.path) }
+        return func() tea.Msg {
+            copyPathsJoined(paths)
+            return jobDoneMsg{path: strings.Join(paths, ", "), act: act, err: nil}
+        }
+    case actOpen:
+        for _, t := range targets {
+            p := t.path
+            cmds = append(cmds, func() tea.Msg {
+                openPath(p)
+                return jobDoneMsg{path: p, act: act, err: nil}
+            })
+        }
+        mstatus = "opening"
+    case actReveal:
+        for _, t := range targets {
+            p := t.path
+            cmds = append(cmds, func() tea.Msg {
+                revealPath(p)
+                return jobDoneMsg{path: p, act: act, err: nil}
+            })
+        }
+        mstatus = "revealing"
+    case actClearQ:
+        for _, t := range targets {
+            p := t.path
+            cmds = append(cmds, func() tea.Msg {
+                clearQuarantine(p)
+                return jobDoneMsg{path: p, act: act, err: nil}
+            })
+        }
+        mstatus = "clearing quarantine"
+    }
+    if mstatus != "" { /* no-op, status updated by caller */ }
+    return tea.Batch(cmds...)
+}
+
+func copyPathsJoined(paths []string) {
+    joined := strings.Join(paths, "\n")
+    if runtime.GOOS == "darwin" && which("pbcopy") != "" {
+        cmd := exec.Command("pbcopy"); stdin, _ := cmd.StdinPipe(); _ = cmd.Start(); _, _ = stdin.Write([]byte(joined)); _ = stdin.Close(); _ = cmd.Wait(); return
+    }
+    if which("wl-copy") != "" { _ = exec.Command("wl-copy", joined).Run(); return }
+    if which("xclip") != "" { _ = exec.Command("sh", "-c", fmt.Sprintf("printf '%%s' %q | xclip -selection clipboard", joined)).Run(); return }
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -214,7 +387,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		lh := msg.Height - 2
 		ph := msg.Height - 2
 		m.list.SetSize(lw, lh)
-		m.preview.Width = pw; m.preview.Height = ph
+        m.preview.Width = pw; m.preview.Height = ph
+        m.actions.SetSize(msg.Width/2, msg.Height/2)
+    case spinner.TickMsg:
+        var cmd tea.Cmd
+        m.spin, cmd = m.spin.Update(msg)
+        return m, cmd
     case previewMsg:
         // Try parse JSON, fallback to raw text
         var fj finfoJSON
@@ -231,7 +409,67 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             m.preview.SetContent(s)
         }
         m.status = ""
+    case jobDoneMsg:
+        m.jobs.running--
+        if msg.err != nil { m.jobs.failed++ } else { m.jobs.done++ }
+        switch msg.act {
+        case actCopy: m.status = "copied" 
+        case actOpen: m.status = "opened" 
+        case actReveal: m.status = "revealed"
+        case actClearQ: m.status = "quarantine cleared"
+        }
+        return m, nil
 	case tea.KeyMsg:
+        // Global toggle for help overlay
+        if key.Matches(msg, m.keys.Help) {
+            if m.mode == modeHelp { m.mode = modeList } else { m.mode = modeHelp }
+            return m, nil
+        }
+        if m.mode == modeHelp {
+            if msg.Type == tea.KeyEsc || msg.String() == "q" || msg.String() == "?" {
+                m.mode = modeList
+            }
+            return m, nil
+        }
+        if m.mode == modeActions {
+            switch {
+            case msg.Type == tea.KeyEsc:
+                m.mode = modeList
+                return m, nil
+            case msg.Type == tea.KeyEnter:
+                if it, ok := m.actions.SelectedItem().(actionItem); ok {
+                    switch it.kind {
+                    case actClearQ:
+                        m.mode = modeConfirm
+                        m.status = fmt.Sprintf("confirm clear quarantine for %d item(s)? y/N", len(m.targetItems()))
+                        return m, nil
+                    case actChmod:
+                        m.mode = modeChmod; m.filter.Placeholder = "octal (e.g. 644)"; m.filter.SetValue(""); m.filter.Focus(); return m, nil
+                    default:
+                        m.jobs.running += len(m.targetItems())
+                        return m, m.runActionOnTargets(it.kind)
+                    }
+                }
+                return m, nil
+            default:
+                var cmd tea.Cmd
+                m.actions, cmd = m.actions.Update(msg)
+                return m, cmd
+            }
+        }
+        if m.mode == modeConfirm {
+            s := msg.String()
+            if s == "y" || s == "Y" {
+                m.jobs.running += len(m.targetItems())
+                m.mode = modeList
+                return m, tea.Batch(m.runActionOnTargets(actClearQ), m.loadPreview())
+            }
+            if s == "n" || s == "N" || msg.Type == tea.KeyEsc {
+                m.mode = modeList
+                m.status = "cancelled"
+            }
+            return m, nil
+        }
 		switch {
 		case key.Matches(msg, m.keys.Quit):
 			return m, tea.Quit
@@ -243,19 +481,45 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.long = !m.long
 			return m, m.loadPreview()
 		case key.Matches(msg, m.keys.Copy):
-			if it, ok := m.list.SelectedItem().(fileItem); ok { copyPath(it.path); m.status = "copied" }
+            targets := m.targetItems()
+            if len(targets) == 1 { copyPath(targets[0].path) } else {
+                paths := make([]string, 0, len(targets)); for _, t := range targets { paths = append(paths, t.path) }
+                copyPathsJoined(paths)
+            }
+            m.status = "copied"
 		case key.Matches(msg, m.keys.Open):
-			if it, ok := m.list.SelectedItem().(fileItem); ok { openPath(it.path); m.status = "opened" }
+            m.jobs.running += len(m.targetItems())
+            return m, m.runActionOnTargets(actOpen)
 		case key.Matches(msg, m.keys.Reveal):
-			if it, ok := m.list.SelectedItem().(fileItem); ok { revealPath(it.path); m.status = "revealed" }
+            m.jobs.running += len(m.targetItems())
+            return m, m.runActionOnTargets(actReveal)
 		case key.Matches(msg, m.keys.ClearQ):
-			if it, ok := m.list.SelectedItem().(fileItem); ok { clearQuarantine(it.path); m.status = "quarantine cleared"; return m, m.loadPreview() }
+            m.mode = modeConfirm
+            m.status = fmt.Sprintf("confirm clear quarantine for %d item(s)? y/N", len(m.targetItems()))
+            return m, nil
 		case key.Matches(msg, m.keys.Chmod):
 			m.mode = modeChmod; m.filter.Placeholder = "octal (e.g. 644)"; m.filter.SetValue(""); m.filter.Focus();
 		case key.Matches(msg, m.keys.Filter):
 			m.filter.Placeholder = "filter"; m.filter.SetValue(""); m.filter.Focus()
 		case key.Matches(msg, m.keys.Refresh):
 			return m, m.loadPreview()
+        case key.Matches(msg, m.keys.Select):
+            idx := m.list.Index()
+            if it, ok := m.list.SelectedItem().(fileItem); ok {
+                it.selected = !it.selected
+                m.list.SetItem(idx, it)
+            }
+            return m, nil
+        case key.Matches(msg, m.keys.SelectAll):
+            for i := 0; i < len(m.list.Items()); i++ { if it, ok := m.list.Items()[i].(fileItem); ok { it.selected = true; m.list.SetItem(i, it) } }
+            return m, nil
+        case key.Matches(msg, m.keys.ClearSel):
+            for i := 0; i < len(m.list.Items()); i++ { if it, ok := m.list.Items()[i].(fileItem); ok { it.selected = false; m.list.SetItem(i, it) } }
+            return m, nil
+        case key.Matches(msg, m.keys.Actions):
+            m.mode = modeActions
+            // Center overlay size is set in WindowSize
+            return m, nil
 		}
 	}
 	// If entering input modes
@@ -266,11 +530,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if k, ok := msg.(tea.KeyMsg); ok {
 			s := k.String()
 			if s == "enter" {
-				if it, ok := m.list.SelectedItem().(fileItem); ok {
-					_ = chmodPath(it.path, strings.TrimSpace(m.filter.Value()))
-					m.status = "chmod applied"
-				}
-				m.mode = modeList; m.filter.Blur(); return m, m.loadPreview()
+                oct := strings.TrimSpace(m.filter.Value())
+                targets := m.targetItems()
+                if len(targets) > 0 {
+                    // Run chmod on all targets asynchronously
+                    cmds := make([]tea.Cmd, 0, len(targets))
+                    for _, t := range targets { p := t.path; cmds = append(cmds, func() tea.Msg { _ = chmodPath(p, oct); return jobDoneMsg{path: p, act: actChmod, err: nil} }) }
+                    m.jobs.running += len(targets)
+                    m.status = "chmod applied"
+                    m.mode = modeList; m.filter.Blur(); return m, tea.Batch(tea.Batch(cmds...), m.loadPreview())
+                }
+                m.mode = modeList; m.filter.Blur(); return m, nil
 			} else if s == "esc" {
 				m.mode = modeList; m.filter.Blur()
 			}
@@ -283,16 +553,43 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	title := lipgloss.NewStyle().Foreground(lipgloss.Color("63")).Bold(true).Render(" finfo TUI (alpha)")
+    title := m.theme.title.Render(" finfo TUI (alpha)")
 	left := m.list.View()
 	right := m.preview.View()
-	status := lipgloss.NewStyle().Faint(true).Render(m.status)
+    // Build dynamic status
+    selCount := 0
+    for i := 0; i < len(m.list.Items()); i++ { if it, ok := m.list.Items()[i].(fileItem); ok && it.selected { selCount++ } }
+    jobs := fmt.Sprintf("jobs %s %d ▸ ✓%d ✗%d", m.spin.View(), m.jobs.running, m.jobs.done, m.jobs.failed)
+    status := m.theme.status.Render(strings.TrimSpace(fmt.Sprintf("%s  |  selected %d  |  %s", m.status, selCount, jobs)))
 	// Input line (filter/chmod) when focused
 	inputLine := ""
 	if m.filter.Focused() {
 		inputLine = "\n" + m.filter.View()
 	}
-	return title + "\n" + lipgloss.JoinHorizontal(lipgloss.Top, left, right) + inputLine + "\n" + m.help.View(m.keys) + "  " + status + "\n"
+    base := title + "\n" + lipgloss.JoinHorizontal(lipgloss.Top, left, right) + inputLine + "\n" + m.help.View(m.keys) + "  " + status + "\n"
+    if m.mode == modeActions {
+        w := lipgloss.Width(base)
+        overlay := m.theme.overlay.Render("Actions\n" + m.actions.View() + "\nenter to run, esc to close")
+        // simple overlay appended; terminals will show below
+        _ = w // placeholder to avoid unused; layout kept simple
+        return base + "\n" + overlay
+    }
+    if m.mode == modeConfirm {
+        overlay := m.theme.overlay.Render(m.status)
+        return base + "\n" + overlay
+    }
+    if m.mode == modeHelp {
+        b := &strings.Builder{}
+        fmt.Fprintf(b, "Keymap\n\n")
+        fmt.Fprintf(b, "Navigation: ↑/k, ↓/j, / filter, enter select\n")
+        fmt.Fprintf(b, "Actions: a palette, c copy, o open, E reveal, r clear quarantine, m chmod\n")
+        fmt.Fprintf(b, "Selection: space toggle, A all, V clear\n")
+        fmt.Fprintf(b, "Misc: l toggle long, R refresh, q quit, ? help\n\n")
+        fmt.Fprintf(b, "Batch ops apply to selected items; otherwise current item.")
+        overlay := m.theme.overlay.Render(b.String())
+        return base + "\n" + overlay
+    }
+    return base
 }
 
 func main() {

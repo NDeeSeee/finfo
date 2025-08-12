@@ -13,6 +13,11 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - `--risk` (-S) JSON stub (flag-gated)
 - `finfo html --dashboard` exporter
 - Go TUI (alpha) in `tui/` using Bubble Tea + Bubbles + Lip Gloss; `finfo tui` forwards to `finfotui` binary when present (shell fallback otherwise)
+  - Split layout with async JSON preview
+  - Action palette overlay (`a`) with confirmations for destructive actions
+  - Multi-select and batch operations (`space`, `A`, `V`)
+  - Status bar with async job spinner and counts
+  - Theming via `FINFOTUI_THEME`; keymap help overlay (`?`)
 
 ### Changed
 - Modularized codebase under `lib/`, subcommands under `lib/cmd/`

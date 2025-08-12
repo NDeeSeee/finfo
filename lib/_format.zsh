@@ -11,22 +11,29 @@ _ellipsize_middle() {
 _section() {
   local title="$1"; local key="$2"; local cols=$(_term_cols)
   local want_rule=${FINFO_RULE:-1}
+  # Always add one blank line before each section header for breathing room
+  printf "\n"
   if _has_nerd; then
     local tag_l="" tag_r=""; local hdr_idx=$(_hdr_bg_idx_for "$key"); local bg=$(_bg256 ${hdr_idx:-${THEME_HDR_BG_IDX:-24}}) fg=$(_color256 15)
     local ic; ic=$(_sec_icon "$key")
-    local style="${FINFO_HEADER_STYLE:-left}"
-    if [[ "$style" == center ]]; then
-      # Center within clamp width (default 100)
-      local width=$(_clamp_width $cols)
-      local text=" $ic $title "
-      local left=$(( (width - ${#text} - 2) / 2 )); (( left < 0 )) && left=0
-      local right=$(( width - ${#text} - left - 2 )); (( right < 0 )) && right=0
-      printf " %*s" $left ""
-      printf "%s%s%s%s%s%s" "$bg" "$fg" "$tag_l" "$text" "$tag_r" "$RESET"
-      printf "%*s\n" $right ""
+    local style="${FINFO_HEADER_STYLE:-left}"; local mode="${FINFO_HEADER_MODE:-line}"
+    if [[ "$mode" == chip ]]; then
+      if [[ "$style" == center ]]; then
+        # Center within clamp width (default 100)
+        local width=$(_clamp_width $cols)
+        local text=" $ic ${BOLD}$title${RESET}"
+        local left=$(( (width - ${#text} - 2) / 2 )); (( left < 0 )) && left=0
+        local right=$(( width - ${#text} - left - 2 )); (( right < 0 )) && right=0
+        printf " %*s" $left ""
+        printf "%s%s%s%s%s%s" "$bg" "$fg$BOLD" "$tag_l" "$text" "$tag_r" "$RESET"
+        printf "%*s\n" $right ""
+      else
+        # Left-aligned header chip
+        printf "  %s%s%s %s %s %s%s\n" "$bg" "$fg$BOLD" "$tag_l" "$ic" "$title" "$tag_r" "$RESET"
+      fi
     else
-      # Left-aligned header chip
-      printf "  %s%s%s %s %s %s%s\n" "$bg" "$fg" "$tag_l" "$ic" "$title" "$tag_r" "$RESET"
+      # Line mode: simple colored label and optional rule
+      printf "  %s%s %s%s%s\n" "$THEME_LABEL" "$ic" "$BOLD" "$title" "$RESET"
     fi
   else
     local ic; ic=$(_sec_icon "$key")

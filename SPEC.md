@@ -475,6 +475,7 @@ Proposed near-term reorganizations:
 15. Phase 1.15: KEYS panel and shortcut actions (`--keys`, `--keys-timeout`, `--no-keys`; auto in `--long`) [DONE]
 16. Phase 1.16: Expanded shortcuts (`--edit`, `--copy-*`, `--chmod`) with colored notices [DONE]
 17. Phase 1.17: Go TUI alpha — list+preview+actions (Bubble Tea) [DONE]
+    - Includes: action palette overlay (`a`), multi-select (`space`/`A`/`V`), async job status bar with spinner, theming via `FINFOTUI_THEME`, and keymap help overlay (`?`).
 18. Phase 1.18: HTML dashboard alpha — static assets skeleton, schema, and exporter [NEXT]
 18. Phase 1.18: Fonts module `_fonts.zsh` — cross‑platform detection and CLI (`finfo fonts`) [NEXT]
 19. Phase 5 scaffolding: add module stubs `_risk.zsh`, `_summarize.zsh`, `_anomaly.zsh`, `_tui.zsh`, `_dashboard.zsh`, `_index.zsh`, `_dedupe.zsh`, `_attest.zsh`, `_sandbox.zsh`, `_trace.zsh`, `_redact.zsh`, `_cause.zsh`, `_lineage.zsh`, `_sentinel.zsh`, `_packplan.zsh`, `_policy.zsh`, `_aui.zsh`, `_learn.zsh`, `_gamify.zsh`, `_voice.zsh`, `_collab.zsh`, `_nlc.zsh`, `_suggest.zsh`, `_nocode.zsh`, `_fonts.zsh` (lazy‑loaded) and extend JSON schema [PLANNED]
