@@ -98,6 +98,7 @@ finfo() {
   # Shortcuts: -C (copy abs path), -O (open), -E (reveal)
   # Long option mapping
   local -a argv_new
+  local qr_hash_algo_req=""
   local show_help=0
   while (( $# > 0 )); do
     case "$1" in
@@ -126,6 +127,7 @@ finfo() {
       --copy-rel)    argv_new+=(-Y);;
       --copy-dir)    argv_new+=(-D);;
       --copy-hash)   shift; argv_new+=(-A "$1");;
+      --qr-hash)     shift; qr_hash_algo_req="$1";;
       --clear-quarantine) argv_new+=(-Q);;
       --chmod)       shift; argv_new+=(-M "$1");;
       --html)        html_output=1;;
@@ -144,6 +146,18 @@ finfo() {
 
   # Subcommand: chmod PATH → interactive chmod helper (arrow-based)
   if [[ "$1" == chmod ]]; then shift; finfo_cmd_chmod "$1"; _cleanup; return $?; fi
+
+  # Subcommand: table [PATH…] → compact aligned table (pure zsh)
+  if [[ "$1" == table ]]; then shift; finfo_table "$@"; _cleanup; return $?; fi
+
+  # Subcommand: browse|tui [PATH…] → interactive browser (fzf+jq if present)
+  if [[ "$1" == browse || "$1" == tui ]]; then shift; finfo_browse "$@"; _cleanup; return $?; fi
+
+  # Subcommand: search PATTERN [DIR] → content/path search (rg/grep with fzf preview)
+  if [[ "$1" == search ]]; then shift; finfo_cmd_search "$@"; _cleanup; return $?; fi
+
+  # Subcommand: ls [DIR] → modern directory listing (eza/exa if present)
+  if [[ "$1" == ls ]]; then shift; finfo_cmd_ls "$1"; _cleanup; return $?; fi
 
   # Subcommand: html --dashboard [PATH…] → export dashboard to dist/index.html
   if [[ "$1" == html ]]; then
@@ -193,6 +207,7 @@ finfo() {
   local opt_html=${html_output:-0}
   local opt_clear_quar=$(( ${#_o_Q} > 0 ))
   local open_with_app=""; (( ${#_o_o} > 0 )) && open_with_app="${_o_o[2]}"
+  local qr_hash_algo="${qr_hash_algo_req}"
 
   # Long implies verbose, and enables keys panel unless explicitly disabled
   if (( opt_long )); then opt_verbose=1; if (( ! opt_no_keys )); then opt_keys=1; fi; fi
@@ -205,6 +220,11 @@ finfo() {
 
   if (( show_help )); then
     echo "Usage: finfo [--brief|--long|--porcelain|--json|--html] [--width N] [--hash sha256|blake3] [--unit bytes|iec|si] [--icons|--no-icons] [--git|--no-git] [--monitor] [--duplicates] [--keys|--no-keys] [--keys-timeout N] [--copy-path|-C] [--copy-rel] [--copy-dir] [--copy-hash ALGO] [--open|-O] [--open-with APP] [--reveal|-E] [--edit APP|-e APP] [--chmod OCTAL] [--clear-quarantine|-Q] [--risk|-S] [--theme THEME] PATH..."
+    echo "Subcommands:"
+    echo "  table [PATH…]          Compact aligned table (no deps)"
+    echo "  browse|tui [PATH…]     Interactive browser (fzf+jq if available; falls back to table)"
+    echo "  search PATTERN [DIR]   Fast content/path search (rg/grep; fzf preview if available)"
+    echo "  ls [DIR]               Pretty directory listing (eza/exa; falls back to ls)"
     _cleanup; return 0
   fi
 
@@ -442,7 +462,20 @@ finfo() {
   # Checksum
     if [[ -n "$hash_algo" && -f "$path_arg" ]]; then
     local checksum="" algo_disp="${hash_algo}"; _compute_checksum "$path_arg" "$hash_algo"; checksum="$checksum_out"
-    [[ -n "$checksum" ]] && _kv "Checksum" "${algo_disp} ${DIM}${checksum}${RESET}" || _kv "Checksum" "${DIM}${algo_disp} unavailable${RESET}"
+    if [[ -n "$checksum" ]]; then
+      _kv "Checksum" "${algo_disp} ${DIM}${checksum}${RESET}"
+      # Optional QR for checksum
+      if [[ -n "$qr_hash_algo" && "$qr_hash_algo" == "$hash_algo" ]]; then
+        if command -v qrencode >/dev/null 2>&1 && [[ -t 1 ]]; then
+          printf "  %s%s %-*s %s\n" "$LABEL" "$(_glyph info)" 12 "QR:" "${DIM}(checksum ${algo_disp})${RESET}"
+          qrencode -t ANSIUTF8 "$checksum" || true
+        else
+          printf "  %s%s %-*s %s\n" "$LABEL" "$(_glyph info)" 12 "QR:" "${YELLOW}qrencode not available or not a TTY${RESET}"
+        fi
+      fi
+    else
+      _kv "Checksum" "${DIM}${algo_disp} unavailable${RESET}"
+    fi
     fi
 
   # 3) Timeline
@@ -751,6 +784,19 @@ finfo() {
       else
         if (( ! opt_json && ! opt_porcelain && ! opt_compact )); then
           printf "  %s%s %-*s %s%s\n" "$LABEL" "$(_glyph info)" 12 "Checksum:" "${YELLOW}unavailable${RESET}"
+        fi
+      fi
+    fi
+    # Optional: print QR code for checksum (terminal ANSI), requires qrencode
+    if [[ -n "$qr_hash_algo" ]]; then
+      local _qr=""
+      _compute_checksum "$tgt_abs" "$qr_hash_algo"; _qr="$checksum_out"
+      if (( ! opt_json && ! opt_porcelain )) && [[ -n "$_qr" ]]; then
+        if command -v qrencode >/dev/null 2>&1 && [[ -t 1 ]]; then
+          printf "  %s%s %-*s %s%s\n" "$LABEL" "$(_glyph info)" 12 "QR:" "${DIM}${qr_hash_algo}${RESET}"
+          qrencode -t ANSIUTF8 -- "$_qr" 2>/dev/null || true
+        else
+          printf "  %s%s %-*s %s%s\n" "$LABEL" "$(_glyph info)" 12 "QR:" "${YELLOW}install 'qrencode' to render QR in terminal${RESET} (${qr_hash_algo}: ${_qr})"
         fi
       fi
     fi
