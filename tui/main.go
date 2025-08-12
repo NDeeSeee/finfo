@@ -291,6 +291,7 @@ type model struct {
     listPage int
     // Modes
     singleFile bool
+    lastRendered string
 }
 
 type executedOp struct {
@@ -373,6 +374,33 @@ type actionItem struct {
 func (a actionItem) Title() string       { return a.name }
 func (a actionItem) Description() string { return "" }
 func (a actionItem) FilterValue() string { return a.name }
+func (m *model) refreshActions() {
+    items := make([]list.Item, 0, 12)
+    // Always available
+    items = append(items, actionItem{name: "Copy path(s)", kind: actCopy})
+    items = append(items, actionItem{name: "Open", kind: actOpen})
+    if runtime.GOOS == "darwin" {
+        items = append(items, actionItem{name: "Reveal (macOS)", kind: actReveal})
+        items = append(items, actionItem{name: "Open with… (macOS)", kind: actOpenWith})
+        items = append(items, actionItem{name: "Clear quarantine (macOS)", kind: actClearQ})
+    }
+    items = append(items, actionItem{name: "Change permissions (chmod)", kind: actChmod})
+    // Multi-select and file-only actions
+    sel := m.targetItems()
+    // Move/Rename only when all selections are files (not dirs)
+    allFiles := true
+    for _, it := range sel { if it.isDir { allFiles = false; break } }
+    if len(sel) > 0 && allFiles {
+        items = append(items, actionItem{name: "Move to directory…", kind: actMoveToDir})
+        items = append(items, actionItem{name: "Rename by pattern…", kind: actRenamePattern})
+    }
+    // Trash allowed for any selection
+    if len(sel) > 0 { items = append(items, actionItem{name: "Move to Trash", kind: actTrash}) }
+    // Utilities
+    items = append(items, actionItem{name: "Copy JSON (preview)", kind: actCopyJSON})
+    if len(m.undo) > 0 { items = append(items, actionItem{name: "Undo last", kind: actUndo}) }
+    m.actions.SetItems(items)
+}
 
 type op struct{ from, to string }
 
@@ -389,19 +417,7 @@ func initialModelFromArgs(args []string) model {
     pv := viewport.Model{ Width: 0, Height: 0 }
 	pv.YPosition = 0
     in := textinput.New(); in.Placeholder = "filter"; in.Prompt = "/ "; in.CharLimit = 256; in.Blur()
-    acts := list.New([]list.Item{
-        actionItem{name: "Open", kind: actOpen},
-        actionItem{name: "Reveal (macOS)", kind: actReveal},
-        actionItem{name: "Copy path(s)", kind: actCopy},
-        actionItem{name: "Clear quarantine", kind: actClearQ},
-        actionItem{name: "Change permissions (chmod)", kind: actChmod},
-        actionItem{name: "Open with… (macOS)", kind: actOpenWith},
-        actionItem{name: "Copy JSON (preview)", kind: actCopyJSON},
-        actionItem{name: "Move to Trash", kind: actTrash},
-        actionItem{name: "Move to directory…", kind: actMoveToDir},
-        actionItem{name: "Rename by pattern…", kind: actRenamePattern},
-        actionItem{name: "Undo last", kind: actUndo},
-    }, list.NewDefaultDelegate(), 0, 0)
+    acts := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
     sp := spinner.New()
     sp.Spinner = spinner.Points
     th := themeFromEnv()
@@ -690,6 +706,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             return m, nil
         }
         if m.mode == modeActions {
+            // Keep action list gated to current context
+            m.refreshActions()
             switch {
             case msg.Type == tea.KeyEsc:
                 m.mode = modeList
@@ -871,6 +889,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             for i := 0; i < len(m.list.Items()); i++ { if it, ok := m.list.Items()[i].(fileItem); ok { it.selected = false; m.list.SetItem(i, it) } }
             return m, nil
         case key.Matches(msg, m.keys.Actions):
+            m.refreshActions()
             m.mode = modeActions
             // Center overlay size is set in WindowSize
             return m, nil
