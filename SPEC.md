@@ -8,6 +8,7 @@ Turn the ideas under MY OWN THOUGHTS in `Guess_of_the_Concept` into a pragmatic,
 - Pretty human output by default; `--porcelain`/`--json` stable for tooling
 - macOS-first, graceful cross-platform fallbacks
 - No surprises: fast, safe, explain what we infer and why
+- Keep `finfo.zsh` minimal; delegate logic to focused modules in `lib/` and subcommands in `lib/cmd/`
 
 ## CLI surface (additions)
 - `finfo [FILES|DIRS…]` multi-arg support (iterate in given order)
@@ -21,6 +22,27 @@ Turn the ideas under MY OWN THOUGHTS in `Guess_of_the_Concept` into a pragmatic,
   - `--unit bytes|iec|si` size unit preference for display
 - Output
   - Pretty: sections; Porcelain: key\tvalue; JSON: stable schema
+
+## Architecture and directory layout
+
+- `finfo.zsh`: Orchestrator only (parse flags, gather core facts, delegate)
+- `lib/`
+  - `_colors.zsh`, `_icons.zsh`, `_format.zsh`, `_size.zsh`, `_sections.zsh`, `_actions.zsh`
+  - `_security.zsh`: Gatekeeper/codesign/notarization/quarantine/where_froms/verdict
+  - `_filetype.zsh`: PDF pages, Markdown headings, CSV columns/delimiter, image WxH, media duration, About
+  - `_summary.zsh`: Multi-target SUMMARY block
+  - `_checksum.zsh`: Checksum computation
+  - `_monitor.zsh`: Size-rate computation over a window
+  - `_html.zsh`: HTML report generator
+  - `_git.zsh`: Git metadata helper
+  - `_config.zsh`: Loads env defaults and optional $HOME/.config/finfo/config.zsh
+  - `cmd_*.zsh` (currently in `lib/`, next step: move under `lib/cmd/`):
+    - `cmd_diff.zsh`, `cmd_watch.zsh`, `cmd_chmod.zsh`, `cmd_duplicates.zsh`
+
+Proposed near-term reorganizations:
+- Create `lib/cmd/` to host all subcommands; update sources accordingly
+- Add `docs/` for schema and developer notes; add `tests/` for golden outputs
+- Optional: `examples/` with sample invocations; `scripts/` for install/update helpers
 
 ## Feature backlog mapped to phases
 
@@ -98,6 +120,7 @@ Turn the ideas under MY OWN THOUGHTS in `Guess_of_the_Concept` into a pragmatic,
 ## Testing
 - Golden outputs for porcelain/json for: text file, archive, dir (small), Mach-O, symlink
 - Smoke tests for multi-file, brief/long toggles, archive detection, growth monitor (simulate via temp writes)
+ - Add tests for security JSON block, About field, quick stats
 
 ## Next steps (immediate)
 1) Phase 1.1: Multi-arg loop in `finfo.zsh` with per-file run and group summary [DONE]
@@ -107,9 +130,17 @@ Turn the ideas under MY OWN THOUGHTS in `Guess_of_the_Concept` into a pragmatic,
 5) Phase 1.5: `--unit` param, unify humanizer [DONE]
 6) Phase 1.6: `--monitor` lightweight file growth/shrink rate with configurable window [DONE]
 7) Phase 1.7: `--duplicates` content duplicate groups (sha256) with cap [DONE]
+8) Phase 1.8: Security JSON/porcelain fields (gatekeeper/codesign/notarization/quarantine/where_froms/verdict) [DONE]
+9) Phase 1.9: About line in pretty/porcelain/JSON [DONE]
+10) Phase 1.10: Subcommands `diff`, `chmod`, `watch` [DONE]
+11) Phase 1.11: `--html` minimal report [DONE]
+12) Phase 1.12: Modularization into `lib/` helpers and `lib/cmd/` subcommands [DONE]
+13) Phase 1.13: Move subcommands into `lib/cmd/` directory [NEXT]
+14) Phase 1.14: Add docs/ with JSON schema and examples; tests/ with golden outputs [NEXT]
 
 ## Risks and mitigations
 - Performance on large dirs: cap counts, show “approximate” beyond N entries
 - External tools variability: check presence, degrade gracefully
 - Portability: keep darwin-specific bits guarded; avoid failing on Linux
+ - Modular bloat: keep modules focused, small, and composable; avoid cross-coupling; document module contracts in `docs/`
 
