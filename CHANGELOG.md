@@ -12,6 +12,7 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Test harness with porcelain/JSON goldens; HTML and monitor/zip smokes
 - `--risk` (-S) JSON stub (flag-gated)
 - `finfo html --dashboard` exporter
+- Go TUI (alpha) in `tui/` using Bubble Tea + Bubbles + Lip Gloss; `finfo tui` forwards to `finfotui` binary when present (shell fallback otherwise)
 
 ### Changed
 - Modularized codebase under `lib/`, subcommands under `lib/cmd/`

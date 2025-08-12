@@ -177,6 +177,21 @@ scripts/install.zsh --all
 
 Planned distribution channels (not implemented here): Homebrew (macOS), Conda (conda-forge), Makefile targets, curl|bash installer, GitHub Releases with checksums.
 
+### Build TUI (optional)
+
+```bash
+cd tui
+go build -o finfotui ./...
+```
+
+Then run:
+
+```bash
+finfo tui .
+```
+
+It will auto-launch the Go TUI if `finfotui` is on PATH or present in `tui/`, otherwise fall back to the shell TUI.
+
 ## Tests
 
 Run the tiny golden test harness (requires `zsh`, JSON tests use `jq` when available):

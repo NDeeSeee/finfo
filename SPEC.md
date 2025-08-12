@@ -230,12 +230,12 @@ Proposed near-term reorganizations:
 - JSON additions: `security.risk_score`, `security.risk_factors[]`, `provenance.graph`.
 - Acceptance: deterministic score on same inputs; clear Why list; fast mode uses cached facts; deep mode (`--risk-deep`) enables entropy/strings (guarded).
 
-2. Interactive TUI with Fuzzy Search (fzf-powered)
+2. Interactive TUI (Go + Bubble Tea) with Fuzzy Search
 
-- Minimal TUI listing targets and drilling into sections; live fuzzy filter by name/type/git status, tabbed sections, theme-aware.
-- CLI: `finfo --tui [PATH…]` or `finfo browse DIR`.
-- Dependencies optional: prefer builtin navigation; if `fzf` present, enable fuzzy; degrade gracefully.
-- Acceptance: smooth navigation on >1K files; exits with selected path; respects `--long`/`--brief`.
+- Phase A (alpha in repo): list + filter + right-side preview (`finfo --long`), action palette (open/edit/chmod/clear quarantine/copy/reveal), async refresh, status bar. Implemented in `tui/` with Bubble Tea, Lip Gloss, Bubbles. Launched via `finfo tui` (auto-detects binary) with pure‑zsh fallback.
+- Phase B (beta): multi-pane layout (files | preview | actions), tabs, job queue for background tasks (hashing, bulk chmod), keymap help, themes.
+- CLI: `finfo tui [PATH…]` and `finfo browse DIR` (fzf shell mode).
+- Acceptance: smooth navigation on >1K files; responsive preview; destructive actions gated; respects `--long`/`--brief`.
 
 3. File Content Summarization (type-aware)
 
@@ -243,6 +243,16 @@ Proposed near-term reorganizations:
 - CLI: `finfo summarize PATH [--lines N]` and `--summary` toggle in pretty output.
 - JSON addition: `summary.text` and `summary.highlights[]`.
 - Acceptance: runs under 100ms for small files without external heavy deps; gated deep scans.
+
+1. Structured report export (JSON/YAML)
+
+- Add CLI to save machine‑readable reports to disk without wrapping in HTML:
+  - `finfo export --json PATH [--out report.json]`
+  - `finfo export --yaml PATH [--out report.yaml]`
+- Behavior:
+  - When `--json` is used, invoke existing `--json` path and write to `--out` or stdout.
+  - When `--yaml` is used, convert the JSON to YAML (prefer `yq` if present; otherwise minimal shell converter) and write to `--out` or stdout.
+- Acceptance: stable schema matches `--json`; YAML is equivalent; exits non‑zero on write errors.
 
 4. Machine Learning–Based Anomaly Detection (optional)
 
@@ -464,7 +474,8 @@ Proposed near-term reorganizations:
 14. Phase 1.14: Add docs/ with JSON schema and examples; tests/ with golden outputs [IN PROGRESS]
 15. Phase 1.15: KEYS panel and shortcut actions (`--keys`, `--keys-timeout`, `--no-keys`; auto in `--long`) [DONE]
 16. Phase 1.16: Expanded shortcuts (`--edit`, `--copy-*`, `--chmod`) with colored notices [DONE]
-17. Phase 1.17: HTML dashboard alpha — static assets skeleton, schema, and exporter [NEXT]
+17. Phase 1.17: Go TUI alpha — list+preview+actions (Bubble Tea) [DONE]
+18. Phase 1.18: HTML dashboard alpha — static assets skeleton, schema, and exporter [NEXT]
 18. Phase 1.18: Fonts module `_fonts.zsh` — cross‑platform detection and CLI (`finfo fonts`) [NEXT]
 19. Phase 5 scaffolding: add module stubs `_risk.zsh`, `_summarize.zsh`, `_anomaly.zsh`, `_tui.zsh`, `_dashboard.zsh`, `_index.zsh`, `_dedupe.zsh`, `_attest.zsh`, `_sandbox.zsh`, `_trace.zsh`, `_redact.zsh`, `_cause.zsh`, `_lineage.zsh`, `_sentinel.zsh`, `_packplan.zsh`, `_policy.zsh`, `_aui.zsh`, `_learn.zsh`, `_gamify.zsh`, `_voice.zsh`, `_collab.zsh`, `_nlc.zsh`, `_suggest.zsh`, `_nocode.zsh`, `_fonts.zsh` (lazy‑loaded) and extend JSON schema [PLANNED]
 
