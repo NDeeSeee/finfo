@@ -80,8 +80,10 @@ func finfoCmd() []string {
 }
 
 func finfoPreviewArgs(target string, long bool) []string {
-    // Prefer JSON to allow structured, concise preview; fallback to pretty if JSON fails
-    args := append(finfoCmd(), "--json", "--", target)
+    // Prefer JSON to allow structured, concise preview; include brief/long hint
+    args := finfoCmd()
+    if long { args = append(args, "--long") } else { args = append(args, "--brief") }
+    args = append(args, "--json", "--", target)
     return args
 }
 
@@ -202,6 +204,7 @@ type model struct {
     jobs    jobs
     spin    spinner.Model
     theme   theme
+    originalArgs []string
 }
 
 type jobs struct {
@@ -289,7 +292,7 @@ func initialModelFromArgs(args []string) model {
     sp := spinner.New()
     sp.Spinner = spinner.Points
     th := themeFromEnv()
-    return model{ list: l, preview: pv, help: help.New(), keys: defaultKeymap(), filter: in, long: true, mode: modeList, actions: acts, spin: sp, theme: th }
+    return model{ list: l, preview: pv, help: help.New(), keys: defaultKeymap(), filter: in, long: true, mode: modeList, actions: acts, spin: sp, theme: th, originalArgs: append([]string{}, args...) }
 }
 
 func (m model) Init() tea.Cmd {
@@ -307,6 +310,23 @@ func (m model) loadPreview() tea.Cmd {
 		return previewMsg(out)
 	}
 }
+
+func (m model) reloadList() tea.Cmd {
+    prevSel := make(map[string]bool, 32)
+    for i := 0; i < len(m.list.Items()); i++ {
+        if it, ok := m.list.Items()[i].(fileItem); ok && it.selected { prevSel[it.path] = true }
+    }
+    args := m.originalArgs
+    return func() tea.Msg {
+        items, _ := collectPaths(args, 5000)
+        li := make([]list.Item, len(items))
+        for i := range items { items[i].selected = prevSel[items[i].path]; li[i] = items[i] }
+        // Return a closure to update list on main thread
+        return func() tea.Msg { return listMsg{items: li} }
+    }
+}
+
+type listMsg struct{ items []list.Item }
 
 // Helper: determine target items (selected ones if any, otherwise current)
 func (m model) targetItems() []fileItem {
@@ -409,6 +429,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             m.preview.SetContent(s)
         }
         m.status = ""
+    case listMsg:
+        m.list.SetItems(msg.items)
+        return m, m.loadPreview()
     case jobDoneMsg:
         m.jobs.running--
         if msg.err != nil { m.jobs.failed++ } else { m.jobs.done++ }
@@ -501,8 +524,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.mode = modeChmod; m.filter.Placeholder = "octal (e.g. 644)"; m.filter.SetValue(""); m.filter.Focus();
 		case key.Matches(msg, m.keys.Filter):
 			m.filter.Placeholder = "filter"; m.filter.SetValue(""); m.filter.Focus()
-		case key.Matches(msg, m.keys.Refresh):
-			return m, m.loadPreview()
+        case key.Matches(msg, m.keys.Refresh):
+            // Refresh both preview and file list
+            return m, tea.Batch(m.reloadList(), m.loadPreview())
         case key.Matches(msg, m.keys.Select):
             idx := m.list.Index()
             if it, ok := m.list.SelectedItem().(fileItem); ok {

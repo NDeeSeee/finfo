@@ -68,6 +68,8 @@ finfo_html_dashboard() {
     thead th{position:sticky;top:56px;background:var(--panel);text-align:left;padding:8px 10px;border-bottom:1px solid #0006;cursor:pointer}
     tbody td{padding:8px 10px;border-bottom:1px solid #0003;vertical-align:top}
     tbody tr:nth-child(even){background:var(--stripe)}
+    tbody tr.selected{outline:1px solid var(--accent); outline-offset:-1px; background: linear-gradient(0deg, #0003, #0003)}
+    tbody tr:focus{outline:2px solid var(--accent); outline-offset:-2px}
     .muted{color:var(--muted)}
     .badge{padding:1px 6px;border-radius:10px;background:#0003}
     .good{color:var(--good)}.warn{color:var(--warn)}.bad{color:var(--bad)}
@@ -78,7 +80,7 @@ finfo_html_dashboard() {
     code{color:var(--accent)}
     /* Modal */
     .overlay{position:fixed;inset:0;background:#0008;display:none;align-items:center;justify-content:center}
-    .modal{background:var(--panel);border:1px solid #0005;border-radius:12px;max-width:720px;width:90%;max-height:80vh;overflow:auto;padding:16px}
+    .modal{background:var(--panel);border:1px solid #0005;border-radius:12px;max-width:720px;width:90%;max-height:80vh;overflow:auto;padding:16px;position:relative}
     .modal h2{margin:0 0 8px 0;color:var(--accent)}
     .modal .kv{display:grid;grid-template-columns:140px 1fr;gap:6px 12px;margin:8px 0}
     .modal .k{color:var(--muted)}
@@ -109,15 +111,36 @@ finfo_html_dashboard() {
           <h3>Extension</h3>
           <div id="facet-ext-opts"></div>
         </div>
+        <div class="facet" id="facet-mime">
+          <h3>MIME</h3>
+          <div id="facet-mime-opts"></div>
+        </div>
+        <div class="facet" id="facet-owner">
+          <h3>Owner</h3>
+          <div id="facet-owner-opts"></div>
+        </div>
+        <div class="facet">
+          <h3>Date range</h3>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">
+            <input id="dateFrom" type="date" aria-label="From" />
+            <input id="dateTo" type="date" aria-label="To" />
+          </div>
+        </div>
         <div class="facet">
           <h3>Page size</h3>
-          <select id="pageSize">
+          <select id="pageSize" aria-label="Page size">
             <option>50</option>
             <option selected>100</option>
             <option>200</option>
           </select>
         </div>
-        <button class="btn" id="dljson" aria-label="Download JSON">Download JSON</button>
+        <div class="facet">
+          <h3>Export</h3>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn" id="dljson" aria-label="Download JSON">JSON</button>
+            <button class="btn" id="dlyaml" aria-label="Download YAML">YAML</button>
+          </div>
+        </div>
       </aside>
 
       <section>
@@ -128,16 +151,16 @@ finfo_html_dashboard() {
             <button id="next">Next</button>
           </div>
         </div>
-        <table id="tbl">
+        <table id="tbl" role="grid" aria-label="Results table">
       <thead>
         <tr>
-          <th data-k="name">Name</th>
-          <th data-k="size.bytes">Bytes</th>
-          <th data-k="size.human">Size</th>
-          <th data-k="type.description">Type</th>
-          <th data-k="security.verdict">Verdict</th>
-          <th data-k="dates.modified">Modified</th>
-          <th data-k="path.rel">Path</th>
+          <th data-k="name" scope="col">Name</th>
+          <th data-k="size.bytes" scope="col">Bytes</th>
+          <th data-k="size.human" scope="col">Size</th>
+          <th data-k="type.description" scope="col">Type</th>
+          <th data-k="security.verdict" scope="col">Verdict</th>
+          <th data-k="dates.modified" scope="col">Modified</th>
+          <th data-k="path.rel" scope="col">Path</th>
         </tr>
       </thead>
       <tbody></tbody>
@@ -181,14 +204,18 @@ HTML_HEAD
     let sortKey = 'name';
     let sortAsc = true;
     let query = '';
-    const filters = { verdict: new Set(), ext: new Set() };
+    const filters = { verdict: new Set(), ext: new Set(), mime: new Set(), owner: new Set(), from:null, to:null };
 
     const tbody = document.querySelector('#tbl tbody');
-    const countEl = document.getElementById('count');
+    const countEl = document.getElementById('count'); countEl.setAttribute('aria-live','polite');
     const pageEl = document.getElementById('page');
     const qEl = document.getElementById('q');
     const facetVerdict = document.getElementById('facet-verdict-opts');
     const facetExt = document.getElementById('facet-ext-opts');
+    const facetMime = document.getElementById('facet-mime-opts');
+    const facetOwner = document.getElementById('facet-owner-opts');
+    const dateFrom = document.getElementById('dateFrom');
+    const dateTo = document.getElementById('dateTo');
     const sumItems = document.getElementById('sum-items');
     const sumFiles = document.getElementById('sum-files');
     const sumDirs = document.getElementById('sum-dirs');
@@ -203,14 +230,14 @@ HTML_HEAD
     function fmtDate(d){ return d || ''; }
     function formatRow(r){
       const verdict = get(r,'security.verdict');
-      return `<tr>
-        <td><code>${r.name}</code></td>
-        <td class="muted">${get(r,'size.bytes')}</td>
-        <td>${get(r,'size.human')}</td>
-        <td class="muted">${get(r,'type.description')}</td>
-        <td class="${verdictClass(verdict)}"><span class="badge">${verdict||''}</span></td>
-        <td class="muted">${fmtDate(get(r,'dates.modified'))}</td>
-        <td class="muted">${get(r,'path.rel')}</td>
+      return `<tr role="row" tabindex="-1">
+        <td role="gridcell"><code>${r.name}</code></td>
+        <td role="gridcell" class="muted">${get(r,'size.bytes')}</td>
+        <td role="gridcell">${get(r,'size.human')}</td>
+        <td role="gridcell" class="muted">${get(r,'type.description')}</td>
+        <td role="gridcell" class="${verdictClass(verdict)}"><span class="badge">${verdict||''}</span></td>
+        <td role="gridcell" class="muted">${fmtDate(get(r,'dates.modified'))}</td>
+        <td role="gridcell" class="muted">${get(r,'path.rel')}</td>
       </tr>`;
     }
     function extOf(name){ const i = name.lastIndexOf('.'); return i>0 ? name.slice(i+1).toLowerCase() : '(noext)'; }
@@ -224,9 +251,15 @@ HTML_HEAD
           || (get(r,'security.verdict')||'').toLowerCase().includes(q);
         const v = (get(r,'security.verdict')||'').toLowerCase();
         const e = extOf(r.name||'');
+        const m = (get(r,'type.mime')||'').split(';')[0].toLowerCase();
+        const o = (get(r,'owner.user')||'').toLowerCase();
         const passVerdict = filters.verdict.size ? filters.verdict.has(v) : true;
         const passExt = filters.ext.size ? filters.ext.has(e) : true;
-        return passQ && passVerdict && passExt;
+        const passMime = filters.mime.size ? filters.mime.has(m) : true;
+        const passOwner = filters.owner.size ? filters.owner.has(o) : true;
+        const me = get(r,'dates.modified_epoch');
+        const passDate = (!filters.from && !filters.to) || (typeof me==='number' && (!filters.from || me>=filters.from) && (!filters.to || me<=filters.to));
+        return passQ && passVerdict && passExt && passMime && passOwner && passDate;
       });
     }
     function applySort(rows){
@@ -246,6 +279,8 @@ HTML_HEAD
       sumDirs.textContent = dirs.toLocaleString();
       sumBytes.textContent = bytes.toLocaleString();
     }
+    let sel = 0; // selected row within current slice
+    function ensureVisible(tr){ if(!tr) return; const r=tr.getBoundingClientRect(); const p=tbody.parentElement.getBoundingClientRect(); if(r.top<p.top) tr.scrollIntoView({block:'nearest'}); if(r.bottom>p.bottom) tr.scrollIntoView({block:'nearest'}); }
     function render(){
       const filtered = applyFilter(DATA);
       summarize(filtered);
@@ -259,10 +294,26 @@ HTML_HEAD
       const rows = tbody.querySelectorAll('tr');
       rows.forEach((tr, i)=>{
         tr.style.cursor='pointer';
-        tr.addEventListener('click', ()=> showDetails(slice[i]));
+        tr.addEventListener('click', ()=> { sel=i; updateSel(); showDetails(slice[i]); });
+        tr.addEventListener('keydown', (e)=>{
+          if(e.key==='Enter'){ e.preventDefault(); showDetails(slice[i]); }
+        });
       });
+      function updateSel(){ rows.forEach((tr,j)=>{ tr.classList.toggle('selected', j===sel); tr.setAttribute('aria-selected', j===sel? 'true':'false'); tr.setAttribute('tabindex', j===sel? '0':'-1'); }); rows[sel]?.focus({preventScroll:true}); ensureVisible(rows[sel]); }
+      sel = Math.min(sel, Math.max(0, rows.length-1));
+      updateSel();
       countEl.textContent = `${filtered.length} items (${PAGE_SIZE}/page)`;
       pageEl.textContent = `Page ${page} / ${totalPages}`;
+      // keyboard nav on tbody
+      tbody.onkeydown = (e)=>{
+        if(e.key==='ArrowDown'){ e.preventDefault(); if(sel<rows.length-1){ sel++; updateSel(); } }
+        else if(e.key==='ArrowUp'){ e.preventDefault(); if(sel>0){ sel--; updateSel(); } }
+        else if(e.key==='PageDown'){ e.preventDefault(); page=Math.min(totalPages, page+1); sel=0; render(); }
+        else if(e.key==='PageUp'){ e.preventDefault(); page=Math.max(1, page-1); sel=0; render(); }
+        else if(e.key==='Home'){ e.preventDefault(); sel=0; updateSel(); }
+        else if(e.key==='End'){ e.preventDefault(); sel=rows.length-1; updateSel(); }
+        else if(e.key==='Enter'){ e.preventDefault(); showDetails(slice[sel]); }
+      };
     }
     document.getElementById('prev').addEventListener('click',()=>{ if(page>1){ page--; render(); }});
     document.getElementById('next').addEventListener('click',()=>{ page++; render(); });
@@ -276,8 +327,8 @@ HTML_HEAD
       });
     });
     function buildFacets(){
-      const vset = new Set(); const eset = new Set();
-      DATA.forEach(r=>{ const v=(get(r,'security.verdict')||'').toLowerCase(); if(v) vset.add(v); eset.add(extOf(r.name||'')); });
+      const vset = new Set(); const eset = new Set(); const mset = new Set(); const oset = new Set();
+      DATA.forEach(r=>{ const v=(get(r,'security.verdict')||'').toLowerCase(); if(v) vset.add(v); eset.add(extOf(r.name||'')); const mm=(get(r,'type.mime')||'').split(';')[0].toLowerCase(); if(mm) mset.add(mm); const oo=(get(r,'owner.user')||'').toLowerCase(); if(oo) oset.add(oo); });
       const mk = (container, set, target)=>{
         container.innerHTML = Array.from(set).sort().map(val=>`<label class="opt"><input type="checkbox" data-facet="${target}" value="${val}"><span>${val}</span></label>`).join('');
         container.querySelectorAll('input').forEach(inp=>{
@@ -292,6 +343,11 @@ HTML_HEAD
       };
       mk(facetVerdict, vset, 'verdict');
       mk(facetExt, eset, 'ext');
+      mk(facetMime, mset, 'mime');
+      mk(facetOwner, oset, 'owner');
+      function toEpoch(d){ if(!d) return null; const t = Date.parse(d); return isNaN(t)? null : Math.floor(t/1000); }
+      dateFrom && dateFrom.addEventListener('change', e=>{ filters.from = toEpoch(e.target.value); page=1; render(); });
+      dateTo && dateTo.addEventListener('change', e=>{ const t = Date.parse(e.target.value); filters.to = isNaN(t)? null : Math.floor(t/1000)+86399; page=1; render(); });
     }
     function downloadJSON(){
       const filtered = applyFilter(DATA);
@@ -299,6 +355,43 @@ HTML_HEAD
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'finfo-data.json'; a.click(); URL.revokeObjectURL(a.href);
     }
     document.getElementById('dljson').addEventListener('click', downloadJSON);
+    // Minimal JSON→YAML converter (strings, numbers, booleans, null, arrays, objects)
+    function toYAML(value, indent=''){
+      const IND = '  ';
+      if(value===null) return 'null';
+      const t = typeof value;
+      if(t==='string'){
+        if(/[:#\-\n]/.test(value)) return JSON.stringify(value); // quote
+        return value;
+      }
+      if(t==='number' || t==='boolean') return String(value);
+      if(Array.isArray(value)){
+        if(value.length===0) return '[]';
+        return value.map(v=> `${indent}- ${/^(object|array)$/.test(typeof v)?'':toYAML(v, indent+IND)}${(typeof v==='object' && v!==null)?'\n'+toYAML(v, indent+IND).replace(/^/gm, indent+IND):''}`)
+          .join('\n');
+      }
+      // object
+      const keys = Object.keys(value);
+      if(keys.length===0) return '{}';
+      return keys.map(k=>{
+        const v = value[k];
+        const key = /[:#\-\n]/.test(k) ? JSON.stringify(k) : k;
+        if(v===null || typeof v!=='object' || Array.isArray(v)){
+          const vv = toYAML(v, indent+IND).replace(/^/gm, indent+IND);
+          return `${indent}${key}: ${vv.trimStart()}`;
+        } else {
+          const vv = toYAML(v, indent+IND).replace(/^/gm, indent+IND);
+          return `${indent}${key}:\n${vv}`;
+        }
+      }).join('\n');
+    }
+    function downloadYAML(){
+      const filtered = applyFilter(DATA);
+      const yaml = toYAML(filtered, '');
+      const blob = new Blob([yaml],{type:'text/yaml'});
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'finfo-data.yaml'; a.click(); URL.revokeObjectURL(a.href);
+    }
+    document.getElementById('dlyaml').addEventListener('click', downloadYAML);
 
     buildFacets();
     const overlay = document.getElementById('overlay');
