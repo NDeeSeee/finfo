@@ -66,6 +66,18 @@ func collectPaths(args []string, capCount int) ([]fileItem, error) {
 	return items, nil
 }
 
+// scanDir lists immediate children of a directory (files and directories)
+func scanDir(dir string) []fileItem {
+    entries, err := os.ReadDir(dir)
+    if err != nil { return nil }
+    items := make([]fileItem, 0, len(entries))
+    for _, e := range entries {
+        p := filepath.Join(dir, e.Name())
+        items = append(items, fileItem{ path: p, isDir: e.IsDir() })
+    }
+    return items
+}
+
 // ---------- Commands ----------
 
 func which(cmd string) string {
@@ -84,6 +96,13 @@ func finfoPreviewArgs(target string, long bool) []string {
     args := finfoCmd()
     if long { args = append(args, "--long") } else { args = append(args, "--brief") }
     args = append(args, "--json", "--", target)
+    return args
+}
+
+func finfoPrettyArgs(target string, long bool) []string {
+    args := finfoCmd()
+    if long { args = append(args, "--long") } else { args = append(args, "--brief") }
+    args = append(args, "--", target)
     return args
 }
 
@@ -156,7 +175,7 @@ type finfoJSON struct {
 // ---------- UI ----------
 
 type keymap struct {
-    Up, Down, Enter, Quit, ToggleLong, Actions, Copy, Open, Reveal, Chmod, ClearQ, Refresh, Help, Filter, Select, SelectAll, ClearSel, Undo, JobLog key.Binding
+    Up, Down, Enter, Back, Quit, ToggleLong, TogglePreview, Actions, Copy, Open, Reveal, Chmod, ClearQ, Refresh, Help, Filter, Select, SelectAll, ClearSel, Undo, JobLog key.Binding
 }
 
 // Implement help.KeyMap
@@ -167,10 +186,10 @@ func (k keymap) ShortHelp() []key.Binding {
 func (k keymap) FullHelp() [][]key.Binding {
     return [][]key.Binding{
         {k.Up, k.Down, k.Filter},
-        {k.ToggleLong, k.Open, k.Reveal, k.Copy},
+        {k.ToggleLong, k.TogglePreview, k.Open, k.Reveal},
         {k.Chmod, k.ClearQ, k.Refresh},
         {k.Select, k.SelectAll, k.ClearSel, k.Undo},
-        {k.JobLog, k.Actions},
+        {k.JobLog, k.Actions, k.Back},
         {k.Help, k.Quit},
     }
 }
@@ -179,9 +198,11 @@ func defaultKeymap() keymap {
 	return keymap{
 		Up:         key.NewBinding(key.WithKeys("up", "k"), key.WithHelp("↑/k", "up")),
 		Down:       key.NewBinding(key.WithKeys("down", "j"), key.WithHelp("↓/j", "down")),
-		Enter:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "detail")),
+        Enter:      key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "into dir")),
+        Back:       key.NewBinding(key.WithKeys("backspace", "left", "h"), key.WithHelp("⌫/←/h", "back")),
 		Quit:       key.NewBinding(key.WithKeys("q", "esc", "ctrl+c"), key.WithHelp("q", "quit")),
 		ToggleLong: key.NewBinding(key.WithKeys("l"), key.WithHelp("l", "toggle long")),
+        TogglePreview: key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "toggle preview")),
 		Actions:    key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "actions")),
 		Copy:       key.NewBinding(key.WithKeys("c"), key.WithHelp("c", "copy path")),
 		Open:       key.NewBinding(key.WithKeys("o"), key.WithHelp("o", "open")),
@@ -238,6 +259,12 @@ type model struct {
     jobLog []string
     showJobLog bool
     undo []executedOp
+    // Navigation
+    browsing bool
+    cwd string
+    dirStack []string
+    // Preview
+    showPreview bool
 }
 
 type executedOp struct {
@@ -324,7 +351,7 @@ func (a actionItem) FilterValue() string { return a.name }
 type op struct{ from, to string }
 
 func initialModelFromArgs(args []string) model {
-	items, _ := collectPaths(args, 5000)
+    items, _ := collectPaths(args, 5000)
     l := list.New([]list.Item{}, list.NewDefaultDelegate(), 0, 0)
 	li := make([]list.Item, len(items))
 	for i := range items { li[i] = items[i] }
@@ -353,7 +380,19 @@ func initialModelFromArgs(args []string) model {
     sp.Spinner = spinner.Points
     th := themeFromEnv()
     ov := viewport.Model{ Width: 0, Height: 0 }
-    return model{ list: l, preview: pv, help: help.New(), keys: defaultKeymap(), filter: in, long: true, mode: modeList, actions: acts, spin: sp, theme: th, originalArgs: append([]string{}, args...), opsOverlay: ov }
+    m := model{ list: l, preview: pv, help: help.New(), keys: defaultKeymap(), filter: in, long: true, mode: modeList, actions: acts, spin: sp, theme: th, originalArgs: append([]string{}, args...), opsOverlay: ov, showPreview: true }
+    // Enable directory-browsing mode when a single argument is a directory
+    if len(args) == 1 {
+        if fi, err := os.Stat(args[0]); err == nil && fi.IsDir() {
+            m.browsing = true
+            m.cwd = args[0]
+            dirItems := scanDir(m.cwd)
+            li2 := make([]list.Item, len(dirItems))
+            for i := range dirItems { li2[i] = dirItems[i] }
+            m.list.SetItems(li2)
+        }
+    }
+    return m
 }
 
 func (m model) Init() tea.Cmd {
@@ -361,7 +400,7 @@ func (m model) Init() tea.Cmd {
 }
 
 func (m model) loadPreview() tea.Cmd {
-    if len(m.list.Items()) == 0 { return nil }
+    if !m.showPreview || len(m.list.Items()) == 0 { return nil }
 	it, ok := m.list.SelectedItem().(fileItem)
 	if !ok { return nil }
 	args := finfoPreviewArgs(it.path, m.long)
@@ -501,9 +540,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		// Layout: left list 40%, right preview 60%
-		lw := int(float64(msg.Width) * 0.4)
+        lw := int(float64(msg.Width) * 0.45)
 		if lw < 30 { lw = 30 }
-		pw := msg.Width - lw - 1
+        pw := msg.Width - lw - 1
 		lh := msg.Height - 2
 		ph := msg.Height - 2
 		m.list.SetSize(lw, lh)
@@ -529,7 +568,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             fmt.Fprintf(b, "Rel: %s\nAbs: %s\n", fj.Path.Rel, fj.Path.Abs)
             m.preview.SetContent(b.String())
         } else {
-            m.preview.SetContent(s)
+            // If JSON failed, try pretty output for a faithful static preview
+            it, _ := m.list.SelectedItem().(fileItem)
+            args := finfoPrettyArgs(it.path, m.long)
+            ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second); defer cancel()
+            out, _ := runCmdTimeout(ctx, args[0], args[1:]...)
+            if strings.TrimSpace(out) != "" { m.preview.SetContent(out) } else { m.preview.SetContent(s) }
         }
         m.status = ""
     case listMsg:
@@ -655,9 +699,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			var cmd tea.Cmd
 			m.list, cmd = m.list.Update(msg)
 			return m, tea.Batch(cmd, m.loadPreview())
-		case key.Matches(msg, m.keys.ToggleLong):
+        case key.Matches(msg, m.keys.ToggleLong):
 			m.long = !m.long
 			return m, m.loadPreview()
+        case key.Matches(msg, m.keys.TogglePreview):
+            m.showPreview = !m.showPreview
+            return m, m.loadPreview()
 		case key.Matches(msg, m.keys.Copy):
             targets := m.targetItems()
             if len(targets) == 1 { copyPath(targets[0].path) } else {
@@ -665,6 +712,28 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                 copyPathsJoined(paths)
             }
             m.status = "copied"
+		case key.Matches(msg, m.keys.Enter):
+			if m.browsing {
+				if it, ok := m.list.SelectedItem().(fileItem); ok {
+					if it.isDir {
+						m.dirStack = append(m.dirStack, m.cwd)
+						m.cwd = it.path
+						dirItems := scanDir(m.cwd)
+						li := make([]list.Item, len(dirItems)); for i := range dirItems { li[i] = dirItems[i] }
+						m.list.SetItems(li)
+						return m, m.loadPreview()
+					}
+				}
+			}
+		case key.Matches(msg, m.keys.Back):
+			if m.browsing && len(m.dirStack) > 0 {
+				m.cwd = m.dirStack[len(m.dirStack)-1]
+				m.dirStack = m.dirStack[:len(m.dirStack)-1]
+				dirItems := scanDir(m.cwd)
+				li := make([]list.Item, len(dirItems)); for i := range dirItems { li[i] = dirItems[i] }
+				m.list.SetItems(li)
+				return m, m.loadPreview()
+			}
 		case key.Matches(msg, m.keys.Open):
             m.jobs.running += len(m.targetItems())
             return m, m.runActionOnTargets(actOpen)
@@ -840,8 +909,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
     title := m.theme.title.Render(" finfo TUI (alpha)")
-	left := m.list.View()
-	right := m.preview.View()
+    left := m.list.View()
+    right := ""
+    if m.showPreview { right = m.preview.View() }
     // Build dynamic status
     selCount := 0
     for i := 0; i < len(m.list.Items()); i++ { if it, ok := m.list.Items()[i].(fileItem); ok && it.selected { selCount++ } }
