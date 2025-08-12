@@ -92,6 +92,21 @@ pages, headings, columns, delimiter, image_dims, about
 
 See `dependencies/README.md` for essential and optional tools (install commands for macOS and Linux), fonts, and environment variables. finfo degrades gracefully when extras are missing.
 
+## Install
+
+Quick local install (links `finfo` into `~/bin` and checks environment):
+
+```bash
+scripts/install.zsh --all
+```
+
+- `--minimal`: install essentials only
+- `--all`: also install enhancements (bat, glow, fzf, p7zip, lsof)
+- `--check-only`: don’t install; only report environment status
+- `--run-tests`: run the golden test harness after install
+
+Planned distribution channels (not implemented here): Homebrew (macOS), Conda (conda-forge), Makefile targets, curl|bash installer, GitHub Releases with checksums.
+
 ## Tests
 
 Run the tiny golden test harness (requires `zsh`, JSON tests use `jq` when available):
