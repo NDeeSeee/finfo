@@ -2,6 +2,34 @@
 
 ## Purpose
 Turn the ideas under MY OWN THOUGHTS in `Guess_of_the_Concept` into a pragmatic, phased plan. Keep each step small, shippable, and testable. Favor zsh implementation first (extend `finfo.zsh`), reserving bigger UI for later.
+## Consolidated concept (from Guess_of_the_Concept)
+
+High-level MVP and differentiators:
+- CLI + Header: file name, type, size, lines, workflow version hint (CWL/WDL), git snippet
+- Pretty sections: Essentials (MIME/UTType, owner/group, perms), Timeline, Paths, Security (verdict, gatekeeper/codesign/notarization/quarantine/WhereFroms), Creator fields
+- Interactive inspector (future): list + detail panel, keybindings, theme presets
+- Viral add-on: inline thumbnails (Kitty/iTerm2 protocols) with graceful fallbacks
+- Diff & HTML: `finfo diff A B` and `--html` report
+
+Design system:
+- Accent hue per theme; labels 12ch left-aligned; icons in headers only; accessibility-conscious; TrueColor → 256 → mono fallback
+
+Security/provenance (macOS):
+- Gatekeeper (spctl --assess), codesign identity/validity, notarization staple/state, quarantine decode (agent/epoch/flags), WhereFroms, (optional) provenance xattr summary
+
+Extended ideas (shortlist):
+- Media-aware inline summaries (resolution/duration/EXIF/page count)
+- Arithmetic/conversion smart fields (size units, time formats)
+- Copy-friendly values (hashes, paths, verdict)
+- Contextual fix prompts (clear quarantine, open in Finder, codesign hints)
+- Smart group summaries (by type: counts, largest/oldest, trust flags)
+- Visionary relationships (APFS clones, hard links, duplicates, symlinks)
+- Provenance timeline (WhereFroms + quarantine + provenance)
+- Natural-language querying (future)
+- Templates for known types (Dockerfile base image/layers; MD TOC; CSV stats)
+
+Why these matter: reduce cognitive load; surface context; be actionable; create screenshot-worthy moments.
+
 
 ## Design principles
 - Small, composable edits; ship value in days, not weeks
