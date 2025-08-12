@@ -632,66 +632,17 @@ finfo() {
       local _lsof; _lsof=$(lsof -n -- "$path_arg" 2>/dev/null | awk 'NR>1{print $1"("$2")"}' | head -3 | paste -sd ', ' -)
       [[ -n "$_lsof" ]] && _kv "Open" "${_lsof}"
     fi
-    # About line (short description)
-    local about_str=""
-    if [[ -n "$ft_image_dims" ]]; then about_str="Image ${ft_image_dims}";
-    elif [[ -n "$ft_pages" ]]; then about_str="PDF ${ft_pages} pages";
-    elif [[ -n "$ft_headings" ]]; then about_str="Markdown ${ft_headings} headings";
-    elif [[ -n "$ft_columns" ]]; then about_str="Delimited ${ft_columns} columns${ft_delim:+ (${ft_delim})}";
-    else
-      local extd; extd=$(_describe_ext "$name")
-      if [[ -n "$extd" ]]; then about_str="$extd"; else about_str="${file_desc%%,*}"; fi
-    fi
-    [[ -n "$about_str" ]] && _kv "About" "$about_str"
-    # Filetype quick stats
+    # Filetype quick stats & About
     if [[ -f "$path_arg" ]]; then
-      case "${name:l}" in
-        *.pdf)
-          if [[ $OSTYPE == darwin* ]]; then
-            local pages; pages=$(mdls -name kMDItemNumberOfPages -raw "$path_arg" 2>/dev/null)
-            if [[ "$pages" != "(null)" && "$pages" == <-> ]]; then ft_pages="$pages"; _kv "Pages" "$pages"; fi
-          fi
-          ;;
-        *.png|*.jpg|*.jpeg|*.gif|*.tif|*.tiff|*.bmp|*.heic)
-          if [[ $OSTYPE == darwin* ]] && command -v sips >/dev/null 2>&1; then
-            local dim; dim=$(sips -g pixelWidth -g pixelHeight "$path_arg" 2>/dev/null | awk '/pixel(Width|Height):/{print $2}' | paste -sd 'x' -)
-            if [[ -n "$dim" ]]; then ft_image_dims="$dim"; _kv "Image" "${dim}"; fi
-          fi
-          ;;
-        *.mp3|*.m4a|*.aac|*.wav|*.aiff|*.aif|*.flac|*.mp4|*.mov|*.m4v)
-          if [[ $OSTYPE == darwin* ]]; then
-            local dur=""; dur=$(mdls -name kMDItemDurationSeconds -raw "$path_arg" 2>/dev/null)
-            if [[ "$dur" != "(null)" && -n "$dur" ]]; then
-              local dur_s; dur_s=${dur%.*}
-              local hstr; hstr=$(_fmt_duration ${dur_s:-0})
-              _kv "Duration" "$hstr"
-            fi
-          fi
-          ;;
-        *.md|*.markdown)
-          if command -v grep >/dev/null 2>&1; then
-            local hcnt; hcnt=$(grep -E '^[#]{1,6} ' -c -- "$path_arg" 2>/dev/null || echo 0)
-            if [[ "$hcnt" == <-> ]]; then ft_headings="$hcnt"; _kv "Headings" "$hcnt"; fi
-          fi
-          ;;
-        *.csv|*.tsv|*.txt)
-          # Delimiter guess (tab, comma, semicolon, pipe)
-          local first_line; first_line=$(sed -n '/./{p;q;}' "$path_arg" 2>/dev/null)
-          if [[ -n "$first_line" ]]; then
-            local d=","; local dl=","; local ccomma csemi ctab cpipe
-            ccomma=$(print -r -- "$first_line" | awk -F',' '{print NF-1}')
-            csemi=$(print -r -- "$first_line" | awk -F';' '{print NF-1}')
-            ctab=$(print -r -- "$first_line" | awk -F'\t' '{print NF-1}')
-            cpipe=$(print -r -- "$first_line" | awk -F'\|' '{print NF-1}')
-            local max=$ccomma; dl=","; if (( csemi>max )); then max=$csemi; dl=";"; fi; if (( ctab>max )); then max=$ctab; dl=$'\t'; fi; if (( cpipe>max )); then max=$cpipe; dl='|'; fi
-            if (( max>0 )); then
-              local cols=$(( max + 1 ))
-              local dname="comma"; [[ "$dl" == $'\t' ]] && dname="tab"; [[ "$dl" == ";" ]] && dname="semicolon"; [[ "$dl" == '|' ]] && dname="pipe"
-              ft_columns="$cols"; ft_delim="$dname"; _kv "Columns" "${cols} ${DIM}(delimiter: ${dname})${RESET}"
-            fi
-          fi
-          ;;
-      esac
+      _compute_filetype_stats "$path_arg" "$name" "$file_desc"
+      [[ -n "$about_str" ]] && _kv "About" "$about_str"
+      [[ -n "$ft_pages" ]] && _kv "Pages" "$ft_pages"
+      [[ -n "$ft_image_dims" ]] && _kv "Image" "$ft_image_dims"
+      [[ -n "$ft_headings" ]] && _kv "Headings" "$ft_headings"
+      if [[ -n "$ft_columns" ]]; then
+        local dname="$ft_delim"; _kv "Columns" "${ft_columns} ${DIM}(delimiter: ${dname})${RESET}"
+      fi
+      [[ -n "$ft_duration" ]] && _kv "Duration" "$ft_duration"
     fi
     # Monitor growth/shrink rate (files only; optional)
     if (( opt_monitor )) && [[ -f "$path_arg" ]]; then
