@@ -25,6 +25,7 @@ source "$FINFOROOT/lib/_summary.zsh"
 source "$FINFOROOT/lib/_checksum.zsh"
 source "$FINFOROOT/lib/_monitor.zsh"
 source "$FINFOROOT/lib/_html.zsh"
+source "$FINFOROOT/lib/_dashboard.zsh"
 source "$FINFOROOT/lib/_cmd_loader.zsh"
 _load_cmds "$FINFOROOT"
 source "$FINFOROOT/lib/_git.zsh"
@@ -118,6 +119,7 @@ finfo() {
       --no-keys)     argv_new+=(-X);;
       --copy-path)   argv_new+=(-C);;
       --open)        argv_new+=(-O);;
+      --open-with)   shift; argv_new+=(-o "$1");;
       --edit)        shift; argv_new+=(-e "$1");;
       --reveal)      argv_new+=(-E);;
       --copy-rel)    argv_new+=(-Y);;
@@ -142,9 +144,18 @@ finfo() {
   # Subcommand: chmod PATH → interactive chmod helper (arrow-based)
   if [[ "$1" == chmod ]]; then shift; finfo_cmd_chmod "$1"; _cleanup; return $?; fi
 
-  typeset -a _o_n _o_J _o_q _o_c _o_v _o_G _o_b _o_H _o_k _o_s _o_B _o_L _o_P _o_W _o_Z _o_R _o_r _o_m _o_d _o_K _o_T _o_X _o_C _o_O _o_E _o_e _o_Y _o_D _o_A _o_M _o_Q
+  # Subcommand: html --dashboard [PATH…] → export dashboard to dist/index.html
+  if [[ "$1" == html ]]; then
+    shift
+    if [[ "${1:-}" == --dashboard || "${1:-}" == dashboard ]]; then
+      shift || true
+      finfo_html_dashboard "$@"; _cleanup; return $?;
+    fi
+  fi
+
+  typeset -a _o_n _o_J _o_q _o_c _o_v _o_G _o_b _o_H _o_k _o_s _o_B _o_L _o_P _o_W _o_Z _o_R _o_r _o_m _o_d _o_K _o_T _o_X _o_C _o_O _o_E _o_e _o_Y _o_D _o_A _o_M _o_Q _o_o
   typeset -a _o_U
-  zparseopts -D -E n=_o_n J=_o_J q=_o_q c=_o_c v=_o_v G=_o_G b=_o_b H=_o_H k=_o_k s=_o_s B=_o_B L=_o_L P=_o_P W:=_o_W Z:=_o_Z U:=_o_U R=_o_R r=_o_r m=_o_m d=_o_d K=_o_K T:=_o_T X=_o_X C=_o_C O=_o_O E=_o_E e:=_o_e Y=_o_Y D=_o_D A:=_o_A M:=_o_M Q=_o_Q
+  zparseopts -D -E n=_o_n J=_o_J q=_o_q c=_o_c v=_o_v G=_o_G b=_o_b H=_o_H k=_o_k s=_o_s B=_o_B L=_o_L P=_o_P W:=_o_W Z:=_o_Z U:=_o_U R=_o_R r=_o_r m=_o_m d=_o_d K=_o_K T:=_o_T X=_o_X C=_o_C O=_o_O E=_o_E e:=_o_e Y=_o_Y D=_o_D A:=_o_A M:=_o_M Q=_o_Q o:=_o_o
   local opt_no_color=$(( ${#_o_n} > 0 ))
   local opt_json=$(( ${#_o_J} > 0 ))
   local opt_quiet=$(( ${#_o_q} > 0 ))
@@ -179,6 +190,7 @@ finfo() {
   local chmod_octal=""; (( ${#_o_M} > 0 )) && chmod_octal="${_o_M[2]}"
   local opt_html=${html_output:-0}
   local opt_clear_quar=$(( ${#_o_Q} > 0 ))
+  local open_with_app=""; (( ${#_o_o} > 0 )) && open_with_app="${_o_o[2]}"
 
   # Long implies verbose, and enables keys panel unless explicitly disabled
   if (( opt_long )); then opt_verbose=1; if (( ! opt_no_keys )); then opt_keys=1; fi; fi
@@ -190,7 +202,7 @@ finfo() {
   if [[ "$1" == "--" ]]; then shift; fi
 
   if (( show_help )); then
-    echo "Usage: finfo [--brief|--long|--porcelain|--json|--html] [--width N] [--hash sha256|blake3] [--unit bytes|iec|si] [--icons|--no-icons] [--git|--no-git] [--monitor] [--duplicates] [--keys|--no-keys] [--keys-timeout N] [--copy-path|-C] [--copy-rel] [--copy-dir] [--copy-hash ALGO] [--open|-O] [--reveal|-E] [--edit APP|-e APP] [--chmod OCTAL] [--clear-quarantine|-Q] [--theme THEME] PATH..."
+    echo "Usage: finfo [--brief|--long|--porcelain|--json|--html] [--width N] [--hash sha256|blake3] [--unit bytes|iec|si] [--icons|--no-icons] [--git|--no-git] [--monitor] [--duplicates] [--keys|--no-keys] [--keys-timeout N] [--copy-path|-C] [--copy-rel] [--copy-dir] [--copy-hash ALGO] [--open|-O] [--open-with APP] [--reveal|-E] [--edit APP|-e APP] [--chmod OCTAL] [--clear-quarantine|-Q] [--theme THEME] PATH..."
     _cleanup; return 0
   fi
 
@@ -738,12 +750,22 @@ finfo() {
         fi
       fi
     fi
-    if (( opt_open )); then
-      if command -v open >/dev/null 2>&1; then open -- "$tgt" >/dev/null 2>&1 || true
-      elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$tgt" >/dev/null 2>&1 || true
+    if (( opt_open )) || [[ -n "$open_with_app" ]]; then
+      if [[ -n "$open_with_app" ]]; then
+        if [[ $OSTYPE == darwin* ]]; then open -a "$open_with_app" -- "$tgt" >/dev/null 2>&1 || true
+        else "$open_with_app" "$tgt" >/dev/null 2>&1 & disown || true
+        fi
+      else
+        if command -v open >/dev/null 2>&1; then open -- "$tgt" >/dev/null 2>&1 || true
+        elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$tgt" >/dev/null 2>&1 || true
+        fi
       fi
       if (( ! opt_json && ! opt_porcelain && ! opt_compact )); then
-        printf "  %s%s %-*s %s%s\n" "$LABEL" "$(_glyph try)" 12 "Open:" "launched default app for ${PATHC}${tgt}${RESET}"
+        if [[ -n "$open_with_app" ]]; then
+          printf "  %s%s %-*s %s%s\n" "$LABEL" "$(_glyph try)" 12 "Open:" "opened with ${VALUE}${open_with_app}${RESET} — ${PATHC}${tgt}${RESET}"
+        else
+          printf "  %s%s %-*s %s%s\n" "$LABEL" "$(_glyph try)" 12 "Open:" "launched default app for ${PATHC}${tgt}${RESET}"
+        fi
       fi
     fi
     if (( opt_reveal )); then
