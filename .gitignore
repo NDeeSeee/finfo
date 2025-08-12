@@ -1,0 +1,6 @@
+# Local environment and history
+.history/
+.zshrc
+
+# macOS
+.DS_Store

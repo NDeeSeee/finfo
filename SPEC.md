@@ -67,6 +67,13 @@ Why these matter: reduce cognitive load; surface context; be actionable; create 
   - `cmd_*.zsh` (currently in `lib/`, next step: move under `lib/cmd/`):
     - `cmd_diff.zsh`, `cmd_watch.zsh`, `cmd_chmod.zsh`, `cmd_duplicates.zsh`
 
+Planned new modules (iconic features):
+- `_risk.zsh`: Zero‑Trust risk score + provenance graph assembly and rendering
+- `_anomaly.zsh`: Temporal/size/anomaly detection primitives and sparklines
+- `_summarize.zsh`: Lightweight content summarization (type-aware, opt-in)
+- `_tui.zsh`: Interactive navigator (fuzzy search, filters, keybindings)
+- `_integrations.zsh`: Glue for `jq`, `yq`, and processor handoffs
+
 Proposed near-term reorganizations:
 - Create `lib/cmd/` to host all subcommands; update sources accordingly
 - Add `docs/` for schema and developer notes; add `tests/` for golden outputs
@@ -134,8 +141,41 @@ Proposed near-term reorganizations:
 - Per-path local notes (sidecar `.finfo.notes`), and a few quick action templates
 - Acceptance: `--notes` shows first line and a count of notes
 
+### Phase 5 — Iconic features (opt-in, safe-by-default)
+
+1) Zero‑Trust Risk Score + Provenance Graph
+- Compute a 0–100 risk score using: Gatekeeper, codesign validity/chain, notarization, quarantine, WhereFroms, executable type, entropy/strings heuristics, permission oddities, first-seen/last-opened recency. Provide a compact “Why” breakdown.
+- Render provenance graph (authority → notarization → quarantine → first-seen) inline (ASCII) with flagged edges; add remediation hints.
+- CLI: `finfo risk PATH` and `--risk` toggle for normal runs.
+- JSON additions: `security.risk_score`, `security.risk_factors[]`, `provenance.graph`.
+- Acceptance: deterministic score on same inputs; clear Why list; fast mode uses cached facts; deep mode (`--risk-deep`) enables entropy/strings (guarded).
+
+2) Interactive TUI with Fuzzy Search (fzf-powered)
+- Minimal TUI listing targets and drilling into sections; live fuzzy filter by name/type/git status, tabbed sections, theme-aware.
+- CLI: `finfo --tui [PATH…]` or `finfo browse DIR`.
+- Dependencies optional: prefer builtin navigation; if `fzf` present, enable fuzzy; degrade gracefully.
+- Acceptance: smooth navigation on >1K files; exits with selected path; respects `--long`/`--brief`.
+
+3) File Content Summarization (type-aware)
+- Generate concise summaries for supported types: Markdown (TOC), CSV/TSV (columns, sample header, delimiter), JSON/YAML (top keys), code (top-level defs), notebooks (kernelspec, cell count), archives (top entries), media (duration/resolution, no decode).
+- CLI: `finfo summarize PATH [--lines N]` and `--summary` toggle in pretty output.
+- JSON addition: `summary.text` and `summary.highlights[]`.
+- Acceptance: runs under 100ms for small files without external heavy deps; gated deep scans.
+
+4) Machine Learning–Based Anomaly Detection (optional)
+- Learn typical size/mtime/extension patterns per directory; flag outliers (sudden large binaries in source dirs, future timestamps, burst-edit clusters).
+- CLI: `finfo anomalies DIR [--explain]`.
+- JSON addition: `anomalies:[{kind, score, explain}]`.
+- Acceptance: safe heuristics by default; ML path enabled only with `--ml` and cached per DIR to avoid repeated cost.
+
+5) Integrations with External Tools (processor handoffs)
+- First-class pipes to `jq`/`yq`/`dasel` for JSON/YAML, and a stable `--porcelain` schema for trivial `awk`/`sed` tooling.
+- CLI sugar: `finfo --json PATH | jq …` examples in docs; `finfo --porcelain | awk -F '\t' …` recipes.
+- Acceptance: examples validated in docs/tests; schema stability guaranteed.
+
 ## Non-goals for now
 - Full Bubble Tea TUI; deep provenance timelines; AI summaries; heavy scanners
+- Exception: Phase 5 introduces opt-in, lightweight versions of risk scoring, summarization, and anomaly detection with strict guardrails and caching.
 - Long-running background daemons; intrusive system changes
 
 ## Data model (JSON additions planned)
@@ -144,6 +184,11 @@ Proposed near-term reorganizations:
 - `links`: `{ symlink: {target, exists}, hardlink_count }`
 - `proc`: `{ open_handles: [{pid, name}] }`
 - `filetype`: `{ kind, stats: {pages|rows|cols|headings|delimiter} }`
+- `security.risk_score`: `0..100` with higher meaning riskier
+- `security.risk_factors[]`: `[{key, weight, evidence}]`
+- `provenance.graph`: collapsed adjacency list with labels and flags
+- `summary`: `{ text, highlights: [{label, value}] }`
+- `anomalies[]`: `[{kind, score, explain}]`
 
 ## Testing
 - Golden outputs for porcelain/json for: text file, archive, dir (small), Mach-O, symlink
@@ -163,8 +208,9 @@ Proposed near-term reorganizations:
 10) Phase 1.10: Subcommands `diff`, `chmod`, `watch` [DONE]
 11) Phase 1.11: `--html` minimal report [DONE]
 12) Phase 1.12: Modularization into `lib/` helpers and `lib/cmd/` subcommands [DONE]
-13) Phase 1.13: Move subcommands into `lib/cmd/` directory [NEXT]
+13) Phase 1.13: Move subcommands into `lib/cmd/` directory [DONE]
 14) Phase 1.14: Add docs/ with JSON schema and examples; tests/ with golden outputs [NEXT]
+ 15) Phase 5 scaffolding: add module stubs `_risk.zsh`, `_summarize.zsh`, `_anomaly.zsh`, `_tui.zsh` (lazy-loaded) and extend JSON schema [PLANNED]
 
 ## Risks and mitigations
 - Performance on large dirs: cap counts, show “approximate” beyond N entries

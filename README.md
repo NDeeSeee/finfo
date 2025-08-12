@@ -13,19 +13,22 @@ Fast, colorful file/dir inspector for zsh (macOS-friendly). Pretty human output 
 
 ## Directory layout
 
-- `finfo.zsh`: orchestrator (flags, core facts, delegate to modules)
+- `finfo.zsh`: orchestrator (flags, core facts, delegates to modules)
 - `lib/` helpers:
   - `_colors.zsh`, `_icons.zsh`, `_format.zsh`, `_size.zsh`, `_sections.zsh`, `_actions.zsh`
   - `_security.zsh`, `_filetype.zsh`, `_summary.zsh`, `_checksum.zsh`, `_monitor.zsh`, `_html.zsh`, `_git.zsh`, `_config.zsh`
-  - `cmd_*.zsh`: subcommands (`cmd_diff.zsh`, `cmd_watch.zsh`, `cmd_chmod.zsh`, `cmd_duplicates.zsh`)
+  - `cmd/`: subcommands (`cmd_diff.zsh`, `cmd_watch.zsh`, `cmd_chmod.zsh`, `cmd_duplicates.zsh`)
 
 Planned reorg:
-- move subcommands into `lib/cmd/` directory; add `docs/` and `tests/` directories
+
+- subcommands now load from `lib/cmd/` if present, falling back to legacy `lib/` paths
+- consider adding `docs/` and `tests/` directories
 
 ## CLI
 
-```
-finfo [--brief|--long|--porcelain|--json|--html] [--width N] [--hash sha256|blake3] [--unit bytes|iec|si] [--icons|--no-icons] [--git|--no-git] PATH...
+```bash
+finfo [--brief|--long|--porcelain|--json|--html] [--width N] [--hash sha256|blake3] \
+      [--unit bytes|iec|si] [--icons|--no-icons] [--git|--no-git] [--monitor] [--duplicates] PATH...
 
 finfo diff A B             # metadata diff (porcelain-based)
 finfo chmod PATH           # interactive chmod helper (arrows/space/s/q)
@@ -34,7 +37,7 @@ finfo watch PATH [secs]    # live sample size/mtime/quarantine changes
 
 ## JSON schema (selected)
 
-```
+```json
 {
   "name": "",
   "path": {"abs": "", "rel": ""},
@@ -64,7 +67,7 @@ finfo watch PATH [secs]    # live sample size/mtime/quarantine changes
 
 ## Porcelain keys (selected)
 
-```
+```text
 name, type, size_bytes, size_human, lines, mime, uttype, owner_group, perms_sym, perms_oct,
 created, modified, accessed, rel, abs, symlink, hardlinks, gatekeeper, codesign_status,
 codesign_team, notarization, verdict, where_froms, quarantine, sha256|blake3,
