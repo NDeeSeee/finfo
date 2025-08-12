@@ -99,6 +99,7 @@ finfo() {
   # Long option mapping
   local -a argv_new
   local qr_hash_algo_req=""
+  local qr_cell_size_req=""
   local show_help=0
   # Version helper
   _print_version() {
@@ -138,6 +139,7 @@ finfo() {
       --copy-dir)    argv_new+=(-D);;
       --copy-hash)   shift; argv_new+=(-A "$1");;
       --qr-hash)     shift; qr_hash_algo_req="$1";;
+      --qr-size)     shift; qr_cell_size_req="$1";;
       --clear-quarantine) argv_new+=(-Q);;
       --chmod)       shift; argv_new+=(-M "$1");;
       --html)        html_output=1;;
@@ -221,6 +223,7 @@ finfo() {
   local opt_clear_quar=$(( ${#_o_Q} > 0 ))
   local open_with_app=""; (( ${#_o_o} > 0 )) && open_with_app="${_o_o[2]}"
   local qr_hash_algo="${qr_hash_algo_req}"
+  local qr_cell_size=1; [[ -n "$qr_cell_size_req" ]] && qr_cell_size="$qr_cell_size_req"
 
   # Long implies verbose, and enables keys panel unless explicitly disabled
   if (( opt_long )); then opt_verbose=1; if (( ! opt_no_keys )); then opt_keys=1; fi; fi
@@ -478,10 +481,11 @@ finfo() {
     if [[ -n "$checksum" ]]; then
       _kv "Checksum" "${algo_disp} ${DIM}${checksum}${RESET}"
       # Optional QR for checksum
-      if [[ -n "$qr_hash_algo" && "$qr_hash_algo" == "$hash_algo" ]]; then
+      if [[ -n "$qr_hash_algo" && "$qr_hash_algo" == "$hash_algo" && -z "$__qr_done" ]]; then
         if command -v qrencode >/dev/null 2>&1 && [[ -t 1 ]]; then
           printf "  %s%s %-*s %s\n" "$LABEL" "$(_glyph info)" 12 "QR:" "${DIM}(checksum ${algo_disp})${RESET}"
-          qrencode -t ANSIUTF8 -s 1 -m 0 "$checksum" || true
+          qrencode -t ANSIUTF8 -s "$qr_cell_size" -m 0 "$checksum" || true
+          __qr_done=1
         else
           printf "  %s%s %-*s %s\n" "$LABEL" "$(_glyph info)" 12 "QR:" "${YELLOW}qrencode not available or not a TTY${RESET}"
         fi

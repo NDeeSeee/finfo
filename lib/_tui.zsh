@@ -79,7 +79,9 @@ finfo_browse() {
 }
 
 
-# Minimal interactive TUI (pure zsh; no deps). Keys: j/k or arrows to move, Enter to view, o open, C copy path, E reveal (macOS), q quit.
+# Minimal interactive TUI (pure zsh; no deps).
+# Keys: j/k or arrows to move; Tab cycles panes; Enter to view; a actions; o open; e edit; m chmod; r clear quarantine (macOS);
+# C copy path; E reveal (macOS); q quit.
 finfo_tui() {
   emulate -L zsh
   setopt pipefail
@@ -90,11 +92,11 @@ finfo_tui() {
   local -a files; files=( $(_tui_collect_paths "$@") )
   local n=${#files[@]}
   (( n == 0 )) && { echo "No files"; return; }
-  local idx=1 key
+  local idx=1 key pane=files  # panes: files|actions
   local cols; cols=$(tput cols 2>/dev/null || echo 120)
   _draw_list() {
     command clear
-    printf " %s finfo (minimal) — %d items%s\n" "$BOLD$BLUE" $n "$RESET"
+    printf " %s finfo (minimal) — %d items  %sPane:%s %s\n" "$BOLD$BLUE" $n "$DIM" "$RESET" "$pane"
     local i start=1 stop=n maxitems=20
     # Window around idx
     if (( n > maxitems )); then
@@ -105,22 +107,40 @@ finfo_tui() {
       local mark="  "; (( i == idx )) && mark="> "
       printf "%s%s%s%s\n" "$mark" "$VALUE" "${files[i]}" "$RESET"
     done
-    printf "\n  %sUp/Down, j/k%s  Enter: view  o: open  C: copy  E: reveal  q: quit\n" "$DIM" "$RESET"
+    printf "\n  %sUp/Down, j/k%s  Tab: switch pane  Enter: view  a: actions  o: open  e: edit  m: chmod  r: clear quarantine  C: copy  E: reveal  q: quit\n" "$DIM" "$RESET"
   }
   while :; do
     _draw_list
     read -sk 1 key || break
     case "$key" in
+      $'\t') pane=$([[ "$pane" == files ]] && echo actions || echo files);;
       $'A'|k) (( idx>1 )) && ((idx--));;               # up (arrow A when using read -sk can vary; keep k/j primary)
       $'B'|j) (( idx<n )) && ((idx++));;               # down
       '') # Enter
         command clear
         "$FINFOROOT/finfo.zsh" --long -- "${files[idx]}" || true
         printf "\n%s[Press any key to return]%s" "$DIM" "$RESET"; read -sk 1 _; ;;
+      a)
+        command clear
+        printf "Actions for: %s\n\n" "${files[idx]}"
+        printf "  o open default  |  e edit (
+$EDITOR)  |  m chmod  |  r clear quarantine (macOS)  |  C copy abs  |  E reveal (macOS)\n"
+        printf "\nPress key to execute (any other to cancel)...\n"
+        read -sk 1 key || key=""
+        ;;
       o)
         if command -v open >/dev/null 2>&1; then open -- "${files[idx]}" >/dev/null 2>&1 || true
         elif command -v xdg-open >/dev/null 2>&1; then xdg-open "${files[idx]}" >/dev/null 2>&1 || true
         fi;;
+      e)
+        if [[ -n ${EDITOR:-} ]]; then "$EDITOR" "${files[idx]}" >/dev/null 2>&1 & disown || true
+        elif command -v open >/dev/null 2>&1; then open -- "${files[idx]}" >/dev/null 2>&1 || true
+        fi;;
+      m)
+        command clear
+        printf "chmod OCTAL for %s: " "${files[idx]}"; read -r oct || oct=""; [[ -n "$oct" ]] && chmod -- "$oct" "${files[idx]:A}" 2>/dev/null || true ;;
+      r)
+        command -v xattr >/dev/null 2>&1 && xattr -d com.apple.quarantine -- "${files[idx]:A}" >/dev/null 2>&1 || true ;;
       C) print -rn -- "${files[idx]:A}" | { command -v pbcopy >/dev/null 2>&1 && pbcopy || command -v wl-copy >/dev/null 2>&1 && wl-copy || command -v xclip >/dev/null 2>&1 && xclip -selection clipboard || cat; } ;;
       E) command -v open >/dev/null 2>&1 && open -R -- "${files[idx]}" >/dev/null 2>&1 || true ;;
       q) break;;
