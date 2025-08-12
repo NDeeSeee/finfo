@@ -172,8 +172,11 @@ finfo() {
   # Subcommand: table [PATH…] → compact aligned table (pure zsh)
   if [[ "$1" == table ]]; then shift; finfo_table "$@"; _cleanup; return $?; fi
 
-  # Subcommand: browse|tui [PATH…] → interactive browser (fzf+jq if present)
-  if [[ "$1" == browse || "$1" == tui ]]; then shift; finfo_browse "$@"; _cleanup; return $?; fi
+  # Subcommand: tui [PATH…] → minimal pure-zsh TUI
+  if [[ "$1" == tui ]]; then shift; finfo_tui "$@"; _cleanup; return $?; fi
+
+  # Subcommand: browse [PATH…] → interactive browser (fzf+jq if present)
+  if [[ "$1" == browse ]]; then shift; finfo_browse "$@"; _cleanup; return $?; fi
 
   # Subcommand: search PATTERN [DIR] → content/path search (rg/grep with fzf preview)
   if [[ "$1" == search ]]; then shift; finfo_cmd_search "$@"; _cleanup; return $?; fi
