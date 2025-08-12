@@ -11,9 +11,9 @@ fixtures · directory · —
   [35mTop dir:     sample_dir (1 entries)
   [35mGit:         master (clean)
   [TIMELINE] [C]
-  [35mCreated:     Aug 12 2025 02:44 (20m ago)
-  [35mModified:    Aug 12 2025 03:05 (0m ago)
-  [35mAccessed:    Aug 12 2025 03:03 (2m ago)
+  [35mCreated:     Aug 12 2025 02:44 (35m ago)
+  [35mModified:    Aug 12 2025 03:20 (0m ago)
+  [35mAccessed:    Aug 12 2025 03:20 (0m ago)
   [PATHS] [L]
   [35mRel:         [36m</> [36m/Users/pavb5f/Documents/github/finfo/tests/fixtures
   [35mAbs:         [36m</> [36m/Users/pavb5f/Documents/github/finfo/tests/fixtures

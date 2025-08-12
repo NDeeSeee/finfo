@@ -49,6 +49,14 @@ Why these matter: reduce cognitive load; surface context; be actionable; create 
   - `--keys` show a KEYS panel at the bottom and accept a single keypress to run a shortcut (TTY-only, default 5s timeout)
   - `--keys-timeout N` override the keypress timeout in seconds (default 5)
   - `--no-keys` suppress auto KEYS panel in `--long` mode
+  - Shortcuts (one-shot on first target; pretty-mode prints a colored notice):
+    - `--copy-path` or `-C`: copy absolute path to clipboard
+    - `--open` or `-O`: open in default app
+    - `--reveal` or `-E`: reveal in Finder (macOS)
+    - `--edit APP` or `-e APP`: open in editor (falls back to `$EDITOR`)
+    - `--copy-rel`: copy relative path; `--copy-dir`: copy parent directory
+    - `--copy-hash ALGO`: compute and copy checksum (`sha256` or `blake3`)
+    - `--chmod OCTAL`: change permissions (explicit, prints colored confirmation)
   - `--open-with APP` suggest or open via `open -a APP` (darwin)
   - `--unit bytes|iec|si` size unit preference for display
 - Output
@@ -88,6 +96,14 @@ Planned new modules (iconic features):
  - `_sentinel.zsh`: Active integrity/ransomware sentinel
  - `_packplan.zsh`: Packaging/transfer optimization planner
  - `_policy.zsh`: Explainable policy/risk DSL engine
+  - `_aui.zsh`: Adaptive UI/personalization (feature surfacing, defaults)
+  - `_learn.zsh`: Integrated learning hub (tips, tours, troubleshooting)
+  - `_gamify.zsh`: Gamification signals (badges, progress, streaks)
+  - `_voice.zsh`: Voice command adapter (macOS Speech / external)
+  - `_collab.zsh`: Collaborative workspaces hooks (shared state)
+  - `_nlc.zsh`: Natural‑language command interface (prompt→plan→commands)
+  - `_suggest.zsh`: Context‑aware command suggestions and shortcuts
+  - `_nocode.zsh`: Low/no‑code connectors (flows export, webhooks)
 
 Proposed near-term reorganizations:
 - Create `lib/cmd/` to host all subcommands; update sources accordingly
@@ -224,6 +240,60 @@ Proposed near-term reorganizations:
 - Artifacts: `dist/index.html`, `dist/assets/*`, `catalog.sqlite|catalog.jsonl`.
 - Acceptance: works offline, no trackers; incremental updates; themable.
 
+12) Adaptive User Interface (AUI)
+- Personalizes surfaces: prioritizes frequently used actions, remembers preferred flags, adjusts section density; privacy‑first, on‑device only.
+- CLI: `finfo aui --reset|--export|--import` (manage profile); implicit in normal runs.
+- JSON: `aui:{ profile_version, surfaced_actions[], hidden_sections[] }`.
+- Acceptance: strictly local, revocable, with deterministic fallbacks.
+
+13) Integrated Learning Hub
+- Context‑sensitive tutorials, quick tips, and troubleshooting based on file type and user actions; optional interactive “tour”.
+- CLI: `finfo learn [topic]` and `finfo --tour`.
+- JSON: `learn:{ tips[], links[] }`.
+- Acceptance: unobtrusive; respects `--no-keys`/quiet; works offline.
+
+14) Gamification Elements
+- Achievement badges (hygiene, cleanup wins, duplicate reduction), progress tracking, optional streaks; visible in dashboard and CLI summary.
+- CLI: `finfo badge [--list|--reset]`.
+- JSON: `gamify:{ badges[], progress }`.
+- Acceptance: strictly opt‑in; no dark patterns; easy to disable.
+
+15) Voice Command Integration
+- Hands‑free trigger for common actions (summarize, risk, clean plan) using macOS speech recognition or external engine; safe defaults.
+- CLI: `finfo voice --listen`.
+- JSON: `voice:{ commands[], last_action }`.
+- Acceptance: disabled by default; clear push‑to‑talk UX; privacy note.
+
+16) Collaborative Workspaces
+- Shareable sessions for viewing reports/notes/todos in a local or LAN‑hosted mode; optional CRDT/rsync backing for conflict‑free notes.
+- CLI: `finfo collab start|join [--port N]`.
+- JSON: `collab:{ session_id, participants[], shared_notes }`.
+- Acceptance: LAN/local‑first, explicit sharing, no cloud by default.
+
+17) Natural Language Command Interface
+- Translate natural language to safe, explainable command plans (dry‑run by default), with per‑step approval.
+- CLI: `finfo do "compress all JPEGs in here, exclude backups" [--dry-run]`.
+- JSON: `nlc:{ prompt, plan:[{cmd, explain}], executed:[] }`.
+- Acceptance: zero surprises, shows the plan before running, sandboxable.
+
+18) Context‑Aware Command Suggestions
+- Suggest next actions based on directory, file types, past behavior, and git/workspace context; strictly local learning.
+- CLI: `finfo suggest [PATH]` (prints top N with one‑key runs via `--keys`).
+- JSON: `suggest:{ items:[{cmd, reason, score}] }`.
+- Acceptance: privacy‑first, deterministic fallbacks, easy to disable.
+
+19) Seamless Low‑/No‑Code Integration
+- Export flows to low/no‑code platforms (webhooks, JSON recipes), generate small workers that call `finfo --json` + processors.
+- CLI: `finfo nocode export --flow clean-and-share --to webhook.json`.
+- JSON: `nocode:{ flows:[{name, steps[]}], exported_to }`.
+- Acceptance: portable, offline‑friendly recipes, no vendor lock‑in.
+
+20) Real‑Time Collaborative Command Execution
+- Multi‑user approval and co‑execution of planned commands over LAN, with live logs and rollback checkpoints.
+- CLI: `finfo collab exec -- plan.json` or `finfo collab --approve <id>`.
+- JSON: `collab_exec:{ session_id, approvals:[{user, time}], status }`.
+- Acceptance: explicit consent, audit trail, LAN‑first, reversible.
+
 12) Causal diff explainer (why not just what)
 - Explain not only the diff between two targets, but likely causes (commit messages touching files, churn hotspots, dependency bumps, build logs). Provide triage/fix suggestions.
 - CLI: `finfo cause A B [--since DATE]`.
@@ -281,6 +351,15 @@ Proposed near-term reorganizations:
  - `sentinel`: `{ alerts:[{time, kind, path}], policy, actions[] }`
  - `packplan`: `{ options:[{tool, est_size, est_time, cpu}], recommended }`
  - `policy`: `{ findings:[{id, why}], score }`
+  - `aui`: `{ profile_version, surfaced_actions[], hidden_sections[] }`
+  - `learn`: `{ tips[], links[] }`
+  - `gamify`: `{ badges:[{id, earned_at}], progress:{score, streak} }`
+  - `voice`: `{ commands[], last_action }`
+  - `collab`: `{ session_id, participants:[{id,name}], shared_notes }`
+  - `nlc`: `{ prompt, plan:[{cmd, explain}], executed:[] }`
+  - `suggest`: `{ items:[{cmd, reason, score}] }`
+  - `nocode`: `{ flows:[{name, steps[]}], exported_to }`
+  - `collab_exec`: `{ session_id, approvals:[{user, time}], status }`
 
 ## Testing
 - Golden outputs for porcelain/json for: text file, archive, dir (small), Mach-O, symlink
@@ -303,7 +382,8 @@ Proposed near-term reorganizations:
 13) Phase 1.13: Move subcommands into `lib/cmd/` directory [DONE]
 14) Phase 1.14: Add docs/ with JSON schema and examples; tests/ with golden outputs [IN PROGRESS]
 15) Phase 1.15: KEYS panel and shortcut actions (`--keys`, `--keys-timeout`, `--no-keys`; auto in `--long`) [DONE]
-16) Phase 5 scaffolding: add module stubs `_risk.zsh`, `_summarize.zsh`, `_anomaly.zsh`, `_tui.zsh`, `_dashboard.zsh`, `_index.zsh`, `_dedupe.zsh`, `_attest.zsh`, `_sandbox.zsh`, `_trace.zsh`, `_redact.zsh`, `_cause.zsh`, `_lineage.zsh`, `_sentinel.zsh`, `_packplan.zsh`, `_policy.zsh` (lazy‑loaded) and extend JSON schema [PLANNED]
+16) Phase 1.16: Expanded shortcuts (`--edit`, `--copy-*`, `--chmod`) with colored notices [DONE]
+17) Phase 5 scaffolding: add module stubs `_risk.zsh`, `_summarize.zsh`, `_anomaly.zsh`, `_tui.zsh`, `_dashboard.zsh`, `_index.zsh`, `_dedupe.zsh`, `_attest.zsh`, `_sandbox.zsh`, `_trace.zsh`, `_redact.zsh`, `_cause.zsh`, `_lineage.zsh`, `_sentinel.zsh`, `_packplan.zsh`, `_policy.zsh`, `_aui.zsh`, `_learn.zsh`, `_gamify.zsh`, `_voice.zsh`, `_collab.zsh`, `_nlc.zsh`, `_suggest.zsh`, `_nocode.zsh` (lazy‑loaded) and extend JSON schema [PLANNED]
 
 ## Risks and mitigations
 - Performance on large dirs: cap counts, show “approximate” beyond N entries

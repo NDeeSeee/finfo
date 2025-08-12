@@ -4,16 +4,16 @@ mon_grow.txt · very short file (no magic) · 1B
   [35mFile:        [37mmon_grow.txt – very short file (no magic)
   [ESSENTIALS] [T]
   [35mSize:        1 B (1 B)
-  [35mType:        application/octet-stream; charset=binary
+  [35mType:        application/octet-stream; charset=binary | public.plain-text
   [35mOwner:       pavb5f:staff | -rw-r--r-- (100644)
   [35mAccess:      read-write
   [35mAbout:       very short file (no magic)
   [35mRate:        +75 B/s (1s window)
-  [35mGit:         master (untracked)
+  [35mGit:         master (clean)
   [TIMELINE] [C]
-  [35mCreated:     Aug 12 2025 03:05 (0m ago)
-  [35mModified:    Aug 12 2025 03:05 (0m ago)
-  [35mAccessed:    Aug 12 2025 03:05 (0m ago)
+  [35mCreated:     Aug 12 2025 03:05 (14m ago)
+  [35mModified:    Aug 12 2025 03:20 (0m ago)
+  [35mAccessed:    Aug 12 2025 03:20 (0m ago)
   [PATHS] [L]
   [35mRel:         [36m</> [36m/Users/pavb5f/Documents/github/finfo/tests/tmp/mon_grow.txt
   [35mAbs:         [36m</> [36m/Users/pavb5f/Documents/github/finfo/tests/tmp/mon_grow.txt

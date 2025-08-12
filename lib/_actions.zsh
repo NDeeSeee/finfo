@@ -129,6 +129,30 @@ _archive_stats() {
   [[ -n "$out" ]] && print -r -- "$out"
 }
 
+_clipboard_copy() {
+  local data="$1"
+  if [[ -z "$data" ]]; then return 1; fi
+  if [[ "${FINFO_CLIPBOARD_MODE:-}" == "stdout" ]]; then
+    print -rn -- "$data"
+    return 0
+  fi
+  if command -v pbcopy >/dev/null 2>&1; then
+    print -rn -- "$data" | pbcopy
+    return 0
+  fi
+  if command -v xclip >/dev/null 2>&1; then
+    print -rn -- "$data" | xclip -selection clipboard
+    return 0
+  fi
+  if command -v wl-copy >/dev/null 2>&1; then
+    print -rn -- "$data" | wl-copy
+    return 0
+  fi
+  # Fallback: print to stdout so users can pipe it
+  print -rn -- "$data"
+  return 0
+}
+
 _docker_hint() {
   local name="$1"; local p="$2"; local hints=()
   if [[ "${name:l}" == dockerfile || "${name:l}" == *.dockerfile ]]; then

@@ -93,6 +93,7 @@ finfo() {
   }
   # Options: -n (no color), -J (json), -q (quiet lists), -c (compact), -v (verbose),
   #          -G (nerd bullets), -b (ascii bullets), -H (header bar off)
+  # Shortcuts: -C (copy abs path), -O (open), -E (reveal)
   # Long option mapping
   local -a argv_new
   local show_help=0
@@ -115,6 +116,10 @@ finfo() {
       --keys)        argv_new+=(-K);;
       --keys-timeout) shift; argv_new+=(-T "$1");;
       --no-keys)     argv_new+=(-X);;
+      --copy-path)   argv_new+=(-C);;
+      --open)        argv_new+=(-O);;
+      --edit)        shift; argv_new+=(-e "$1");;
+      --reveal)      argv_new+=(-E);;
       --html)        html_output=1;;
       --help)        show_help=1;;
       *)             argv_new+=("$1");;
@@ -132,9 +137,9 @@ finfo() {
   # Subcommand: chmod PATH → interactive chmod helper (arrow-based)
   if [[ "$1" == chmod ]]; then shift; finfo_cmd_chmod "$1"; _cleanup; return $?; fi
 
-  typeset -a _o_n _o_J _o_q _o_c _o_v _o_G _o_b _o_H _o_k _o_s _o_B _o_L _o_P _o_W _o_Z _o_R _o_r _o_m _o_d _o_K _o_T _o_X
+  typeset -a _o_n _o_J _o_q _o_c _o_v _o_G _o_b _o_H _o_k _o_s _o_B _o_L _o_P _o_W _o_Z _o_R _o_r _o_m _o_d _o_K _o_T _o_X _o_C _o_O _o_E _o_e
   typeset -a _o_U
-  zparseopts -D -E n=_o_n J=_o_J q=_o_q c=_o_c v=_o_v G=_o_G b=_o_b H=_o_H k=_o_k s=_o_s B=_o_B L=_o_L P=_o_P W:=_o_W Z:=_o_Z U:=_o_U R=_o_R r=_o_r m=_o_m d=_o_d K=_o_K T:=_o_T X=_o_X
+  zparseopts -D -E n=_o_n J=_o_J q=_o_q c=_o_c v=_o_v G=_o_G b=_o_b H=_o_H k=_o_k s=_o_s B=_o_B L=_o_L P=_o_P W:=_o_W Z:=_o_Z U:=_o_U R=_o_R r=_o_r m=_o_m d=_o_d K=_o_K T:=_o_T X=_o_X C=_o_C O=_o_O E=_o_E e:=_o_e
   local opt_no_color=$(( ${#_o_n} > 0 ))
   local opt_json=$(( ${#_o_J} > 0 ))
   local opt_quiet=$(( ${#_o_q} > 0 ))
@@ -159,6 +164,10 @@ finfo() {
   local opt_keys=$(( ${#_o_K} > 0 ))
   local opt_no_keys=$(( ${#_o_X} > 0 ))
   local keys_timeout=5; (( ${#_o_T} > 0 )) && keys_timeout="${_o_T[2]}"
+  local opt_copy_path=$(( ${#_o_C} > 0 ))
+  local opt_open=$(( ${#_o_O} > 0 ))
+  local opt_reveal=$(( ${#_o_E} > 0 ))
+  local opt_edit_app=""; (( ${#_o_e} > 0 )) && opt_edit_app="${_o_e[2]}"
   local opt_html=${html_output:-0}
 
   # Long implies verbose, and enables keys panel unless explicitly disabled
@@ -171,7 +180,7 @@ finfo() {
   if [[ "$1" == "--" ]]; then shift; fi
 
   if (( show_help )); then
-    echo "Usage: finfo [--brief|--long|--porcelain|--json|--html] [--width N] [--hash sha256|blake3] [--unit bytes|iec|si] [--icons|--no-icons] [--git|--no-git] [--monitor] [--duplicates] [--keys|--no-keys] [--keys-timeout N] [--theme THEME] PATH..."
+    echo "Usage: finfo [--brief|--long|--porcelain|--json|--html] [--width N] [--hash sha256|blake3] [--unit bytes|iec|si] [--icons|--no-icons] [--git|--no-git] [--monitor] [--duplicates] [--keys|--no-keys] [--keys-timeout N] [--copy-path|-C] [--open|-O] [--reveal|-E] [--edit APP|-e APP] [--theme THEME] PATH..."
     _cleanup; return 0
   fi
 
@@ -681,6 +690,42 @@ finfo() {
   for _t in "${targets[@]}"; do
     _finfo_print_one "$_t" || true
   done
+  # One-shot shortcuts (act on the first target only)
+  if (( ${#targets[@]} >= 1 )); then
+    local tgt="${targets[1]}"
+    if (( opt_copy_path )); then
+      _clipboard_copy "${tgt:A}" >/dev/null 2>&1 || true
+      if (( ! opt_json && ! opt_porcelain && ! opt_compact )); then
+        printf "  %s%s %-*s %s%s\n" "$LABEL" "$(_glyph info)" 12 "Notice:" "Copied path: ${PATHC}${tgt:A}${RESET}"
+      fi
+    fi
+    if (( opt_open )); then
+      if command -v open >/dev/null 2>&1; then open -- "$tgt" >/dev/null 2>&1 || true
+      elif command -v xdg-open >/dev/null 2>&1; then xdg-open "$tgt" >/dev/null 2>&1 || true
+      fi
+      if (( ! opt_json && ! opt_porcelain && ! opt_compact )); then
+        printf "  %s%s %-*s %s%s\n" "$LABEL" "$(_glyph try)" 12 "Open:" "launched default app for ${PATHC}${tgt}${RESET}"
+      fi
+    fi
+    if (( opt_reveal )); then
+      if command -v open >/dev/null 2>&1; then open -R -- "$tgt" >/dev/null 2>&1 || true; fi
+      if (( ! opt_json && ! opt_porcelain && ! opt_compact )); then
+        printf "  %s%s %-*s %s%s\n" "$LABEL" "$(_glyph info)" 12 "Reveal:" "shown in Finder: ${PATHC}${tgt}${RESET}"
+      fi
+    fi
+    if [[ -n "$opt_edit_app" ]]; then
+      local app="$opt_edit_app"; [[ -z "$app" && -n ${EDITOR:-} ]] && app="$EDITOR"
+      if [[ -n "$app" ]]; then
+        if [[ $OSTYPE == darwin* ]]; then open -a "$app" -- "$tgt" >/dev/null 2>&1 || true
+        else "$app" "$tgt" >/dev/null 2>&1 & disown || true
+        fi
+        if (( ! opt_json && ! opt_porcelain && ! opt_compact )); then
+          printf "  %s%s %-*s %s%s\n" "$LABEL" "$(_glyph try)" 12 "Edit:" "opened in ${VALUE}${app}${RESET}"
+        fi
+      fi
+    fi
+  fi
+
 
   # Group summary (pretty only, multi-mode)
   if (( multi_mode )); then
