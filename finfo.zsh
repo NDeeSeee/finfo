@@ -154,8 +154,8 @@ finfo() {
   fi
 
   typeset -a _o_n _o_J _o_q _o_c _o_v _o_G _o_b _o_H _o_k _o_s _o_B _o_L _o_P _o_W _o_Z _o_R _o_r _o_m _o_d _o_K _o_T _o_X _o_C _o_O _o_E _o_e _o_Y _o_D _o_A _o_M _o_Q _o_o
-  typeset -a _o_U
-  zparseopts -D -E n=_o_n J=_o_J q=_o_q c=_o_c v=_o_v G=_o_G b=_o_b H=_o_H k=_o_k s=_o_s B=_o_B L=_o_L P=_o_P W:=_o_W Z:=_o_Z U:=_o_U R=_o_R r=_o_r m=_o_m d=_o_d K=_o_K T:=_o_T X=_o_X C=_o_C O=_o_O E=_o_E e:=_o_e Y=_o_Y D=_o_D A:=_o_A M:=_o_M Q=_o_Q o:=_o_o
+  typeset -a _o_U _o_S
+  zparseopts -D -E n=_o_n J=_o_J q=_o_q c=_o_c v=_o_v G=_o_G b=_o_b H=_o_H k=_o_k s=_o_s B=_o_B L=_o_L P=_o_P W:=_o_W Z:=_o_Z U:=_o_U R=_o_R r=_o_r m=_o_m d=_o_d K=_o_K T:=_o_T X=_o_X C=_o_C O=_o_O E=_o_E e:=_o_e Y=_o_Y D:=_o_D A:=_o_A M:=_o_M Q=_o_Q o:=_o_o S=_o_S
   local opt_no_color=$(( ${#_o_n} > 0 ))
   local opt_json=$(( ${#_o_J} > 0 ))
   local opt_quiet=$(( ${#_o_q} > 0 ))
@@ -173,6 +173,7 @@ finfo() {
   local opt_width=""; (( ${#_o_W} > 0 )) && opt_width="${_o_W[2]}"
   local hash_algo=""; (( ${#_o_Z} > 0 )) && hash_algo="${_o_Z[2]}"
   local unit_scheme="${FINFO_UNIT:-iec}"; (( ${#_o_U} > 0 )) && unit_scheme="${_o_U[2]}"; export FINFO_UNIT="$unit_scheme"
+  local opt_risk=$(( ${#_o_S} > 0 ))
   local opt_no_git=$(( ${#_o_R} > 0 ))
   local opt_force_git=$(( ${#_o_r} > 0 ))
   local opt_monitor=$(( ${#_o_m} > 0 ))
@@ -202,7 +203,7 @@ finfo() {
   if [[ "$1" == "--" ]]; then shift; fi
 
   if (( show_help )); then
-    echo "Usage: finfo [--brief|--long|--porcelain|--json|--html] [--width N] [--hash sha256|blake3] [--unit bytes|iec|si] [--icons|--no-icons] [--git|--no-git] [--monitor] [--duplicates] [--keys|--no-keys] [--keys-timeout N] [--copy-path|-C] [--copy-rel] [--copy-dir] [--copy-hash ALGO] [--open|-O] [--open-with APP] [--reveal|-E] [--edit APP|-e APP] [--chmod OCTAL] [--clear-quarantine|-Q] [--theme THEME] PATH..."
+    echo "Usage: finfo [--brief|--long|--porcelain|--json|--html] [--width N] [--hash sha256|blake3] [--unit bytes|iec|si] [--icons|--no-icons] [--git|--no-git] [--monitor] [--duplicates] [--keys|--no-keys] [--keys-timeout N] [--copy-path|-C] [--copy-rel] [--copy-dir] [--copy-hash ALGO] [--open|-O] [--open-with APP] [--reveal|-E] [--edit APP|-e APP] [--chmod OCTAL] [--clear-quarantine|-Q] [--risk|-S] [--theme THEME] PATH..."
     _cleanup; return 0
   fi
 
@@ -658,7 +659,8 @@ finfo() {
       local aa; aa=$(_json_escape "$a");
       (( first )) || ac_json+=" ,"; first=0; ac_json+="\"$aa\""
     done; ac_json+="]"
-    printf '{"name":"%s","path":{"abs":"%s","rel":"%s"},"is_dir":%s,"type":{"description":"%s","is_text":"%s","charset":"%s"},"size":{"bytes":%s,"human":"%s"},"lines":%s,"perms":{"symbolic":"%s","octal":"%s","explain":"%s"},"dates":{"created":"%s","modified":"%s"},"git":{"present":%s,"branch":"%s","status":"%s"},"security":{"gatekeeper":"%s","codesign":{"signed":%s,"status":"%s","team":"%s"},"notarization":"%s","quarantine":"%s","where_froms":"%s","verdict":"%s"},"links":{"hardlinks":%s},"symlink":{"is_symlink":%s,"target":"%s","target_exists":%s},"dir":{"num_dirs":%s,"num_files":%s,"size_human":"%s"},"filetype":{"pages":%s,"headings":%s,"columns":%s,"delimiter":"%s","image_dims":"%s"},"about":"%s","quality":%s,"actions":%s}\n' \
+    local risk_block=""; if (( opt_risk )); then risk_block=",\"risk\":{\"score\":0,\"why\":\"stub\"}"; fi
+    printf '{"name":"%s","path":{"abs":"%s","rel":"%s"},"is_dir":%s,"type":{"description":"%s","is_text":"%s","charset":"%s"},"size":{"bytes":%s,"human":"%s"},"lines":%s,"perms":{"symbolic":"%s","octal":"%s","explain":"%s"},"dates":{"created":"%s","modified":"%s"},"git":{"present":%s,"branch":"%s","status":"%s"},"security":{"gatekeeper":"%s","codesign":{"signed":%s,"status":"%s","team":"%s"},"notarization":"%s","quarantine":"%s","where_froms":"%s","verdict":"%s"},"links":{"hardlinks":%s},"symlink":{"is_symlink":%s,"target":"%s","target_exists":%s},"dir":{"num_dirs":%s,"num_files":%s,"size_human":"%s"},"filetype":{"pages":%s,"headings":%s,"columns":%s,"delimiter":"%s","image_dims":"%s"},"about":"%s","quality":%s,"actions":%s%s}\n' \
       "$j_name" "$j_abs" "$j_rel" \
       $([[ -d "$target" ]] && echo true || echo false) \
       "$j_type" "$is_text" "$j_charset" \
@@ -674,6 +676,7 @@ finfo() {
       $([[ -n "$ft_pages" ]] && echo "$j_pages" || echo null) $([[ -n "$ft_headings" ]] && echo "$j_headings" || echo null) $([[ -n "$ft_columns" ]] && echo "$j_columns" || echo null) "$j_delim" "$j_img" \
       "$j_about" \
       "$qa_json" "$ac_json"
+      "$risk_block"
       return 0
     fi
 

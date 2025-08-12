@@ -8,12 +8,12 @@ mon_grow.txt · very short file (no magic) · 1B
   [35mOwner:       pavb5f:staff | -rw-r--r-- (100644)
   [35mAccess:      read-write
   [35mAbout:       very short file (no magic)
-  [35mRate:        +75 B/s (1s window)
+  [35mRate:        ~0 B/s (1s window)
   [35mGit:         master (clean)
   [TIMELINE] [C]
-  [35mCreated:     Aug 12 2025 03:05 (27m ago)
-  [35mModified:    Aug 12 2025 03:33 (0m ago)
-  [35mAccessed:    Aug 12 2025 03:33 (0m ago)
+  [35mCreated:     Aug 12 2025 03:05 (43m ago)
+  [35mModified:    Aug 12 2025 03:49 (0m ago)
+  [35mAccessed:    Aug 12 2025 03:49 (0m ago)
   [PATHS] [L]
   [35mRel:         [36m</> [36m/Users/pavb5f/Documents/github/finfo/tests/tmp/mon_grow.txt
   [35mAbs:         [36m</> [36m/Users/pavb5f/Documents/github/finfo/tests/tmp/mon_grow.txt

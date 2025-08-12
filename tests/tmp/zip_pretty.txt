@@ -8,11 +8,11 @@ sample_zip.zip · Zip archive data · 256B
   [35mOwner:       pavb5f:staff | -rw-r--r-- (100644)
   [35mAccess:      read-write
   [35mAbout:       Archive/compressed
-  [35mGit:         master (untracked)
+  [35mGit:         master (modified)
   [TIMELINE] [C]
-  [35mCreated:     Aug 12 2025 03:32 (0m ago)
-  [35mModified:    Aug 12 2025 03:32 (0m ago)
-  [35mAccessed:    Aug 12 2025 03:32 (0m ago)
+  [35mCreated:     Aug 12 2025 03:49 (0m ago)
+  [35mModified:    Aug 12 2025 03:49 (0m ago)
+  [35mAccessed:    Aug 12 2025 03:49 (0m ago)
   [PATHS] [L]
   [35mRel:         [36m</> [36m/Users/pavb5f/Documents/github/finfo/tests/fixtures/sample_zip.zip
   [35mAbs:         [36m</> [36m/Users/pavb5f/Documents/github/finfo/tests/fixtures/sample_zip.zip

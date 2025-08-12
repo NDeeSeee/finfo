@@ -76,6 +76,11 @@ grep -q -- "Rate" "$TMP/monitor_pretty.txt" || { echo "monitor missing Rate" >&2
 "$FINFO" --unit bytes -- "$FX/sample_zip.zip" > "$TMP/zip_pretty.txt" || true
 grep -q -- "Archive" "$TMP/zip_pretty.txt" || { echo "zip missing Archive" >&2; ok=0; }
 
+# HTML smoke: ensure HTML contains Essentials and filename
+"$FINFO" --html -- "$FX/sample.txt" > "$TMP/html_report.txt" || true
+grep -q -- "<h1>sample.txt</h1>" "$TMP/html_report.txt" || { echo "html missing h1" >&2; ok=0; }
+grep -q -- "Essentials" "$TMP/html_report.txt" || { echo "html missing Essentials" >&2; ok=0; }
+
 # If golden missing or REGEN=1 or file empty, (re)initialize
 for f in porcelain_sample.txt.txt porcelain_sample_dir.dir.txt porcelain_symlink.txt json_sample.txt.json json_sample_dir.dir.json json_symlink.json json_sample_md.json json_sample_png.json; do
   if [[ ! -f "$GOLD/$f" || "${REGEN:-0}" == 1 || ! -s "$GOLD/$f" ]]; then

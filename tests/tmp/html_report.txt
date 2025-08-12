@@ -1,0 +1,20 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"><title>finfo: sample.txt</title><style>body{font-family:ui-monospace,Menlo,Consolas,monospace;background:#111;color:#ddd;padding:16px} h1,h2{color:#9cf} .dim{color:#888} .sec{margin-top:1em} code{color:#cdf}</style></head><body>
+<h1>sample.txt</h1>
+<div class="sec"><h2>Essentials</h2>
+<div>Type: <code>ASCII text</code></div>
+<div>Size: <code>12 B</code> <span class="dim">(12 B)</span></div>
+<div>Lines: <code>1</code></div>
+<div>Owner: <code>pavb5f:staff</code> Perms: <code>-rw-r--r--</code> (<span class="dim">100644</span>)</div>
+</div>
+<div class="sec"><h2>Timeline</h2>
+<div>Created: <code>Aug 12 2025 02:44</code></div>
+<div>Modified: <code>Aug 12 2025 03:49</code></div>
+</div>
+<div class="sec"><h2>Paths</h2>
+<div>Rel: <code>/Users/pavb5f/Documents/github/finfo/tests/fixtures/sample.txt</code></div>
+<div>Abs: <code>/Users/pavb5f/Documents/github/finfo/tests/fixtures/sample.txt</code></div>
+</div>
+<div class="sec"><h2>Security</h2>
+<div>Gatekeeper: <code></code> Codesign: <code></code> Team: <code></code> Notarization: <code></code> Verdict: <code></code></div>
+</div>
+</body></html>
