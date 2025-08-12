@@ -46,7 +46,9 @@ Why these matter: reduce cognitive load; surface context; be actionable; create 
   - `-i, --interactive` enter basic navigator (stub v1)
   - `-m, --monitor` watch size/xattrs/trust briefly and summarize deltas
   - `--duplicates` check digest across a search root
-  - `--keys` show a KEYS panel at the bottom and accept a single keypress to run a shortcut (TTY-only, 5s timeout)
+  - `--keys` show a KEYS panel at the bottom and accept a single keypress to run a shortcut (TTY-only, default 5s timeout)
+  - `--keys-timeout N` override the keypress timeout in seconds (default 5)
+  - `--no-keys` suppress auto KEYS panel in `--long` mode
   - `--open-with APP` suggest or open via `open -a APP` (darwin)
   - `--unit bytes|iec|si` size unit preference for display
 - Output
@@ -260,7 +262,7 @@ Proposed near-term reorganizations:
 12) Phase 1.12: Modularization into `lib/` helpers and `lib/cmd/` subcommands [DONE]
 13) Phase 1.13: Move subcommands into `lib/cmd/` directory [DONE]
 14) Phase 1.14: Add docs/ with JSON schema and examples; tests/ with golden outputs [IN PROGRESS]
-15) Phase 1.15: KEYS panel and shortcut actions (`--keys`) [NEXT]
+15) Phase 1.15: KEYS panel and shortcut actions (`--keys`, `--keys-timeout`, `--no-keys`; auto in `--long`) [DONE]
 16) Phase 5 scaffolding: add module stubs `_risk.zsh`, `_summarize.zsh`, `_anomaly.zsh`, `_tui.zsh`, `_dashboard.zsh`, `_index.zsh`, `_dedupe.zsh`, `_attest.zsh`, `_sandbox.zsh`, `_trace.zsh`, `_redact.zsh` (lazy‑loaded) and extend JSON schema [PLANNED]
 
 ## Risks and mitigations

@@ -113,6 +113,8 @@ finfo() {
       --monitor)     argv_new+=(-m);;
       --duplicates)  argv_new+=(-d);;
       --keys)        argv_new+=(-K);;
+      --keys-timeout) shift; argv_new+=(-T "$1");;
+      --no-keys)     argv_new+=(-H);; # reuse -H as header off; will handle separately
       --html)        html_output=1;;
       --help)        show_help=1;;
       *)             argv_new+=("$1");;
@@ -130,9 +132,9 @@ finfo() {
   # Subcommand: chmod PATH → interactive chmod helper (arrow-based)
   if [[ "$1" == chmod ]]; then shift; finfo_cmd_chmod "$1"; _cleanup; return $?; fi
 
-  typeset -a _o_n _o_J _o_q _o_c _o_v _o_G _o_b _o_H _o_k _o_s _o_B _o_L _o_P _o_W _o_Z _o_R _o_r _o_m _o_d _o_K
+  typeset -a _o_n _o_J _o_q _o_c _o_v _o_G _o_b _o_H _o_k _o_s _o_B _o_L _o_P _o_W _o_Z _o_R _o_r _o_m _o_d _o_K _o_T
   typeset -a _o_U
-  zparseopts -D -E n=_o_n J=_o_J q=_o_q c=_o_c v=_o_v G=_o_G b=_o_b H=_o_H k=_o_k s=_o_s B=_o_B L=_o_L P=_o_P W:=_o_W Z:=_o_Z U:=_o_U R=_o_R r=_o_r m=_o_m d=_o_d K=_o_K
+  zparseopts -D -E n=_o_n J=_o_J q=_o_q c=_o_c v=_o_v G=_o_G b=_o_b H=_o_H k=_o_k s=_o_s B=_o_B L=_o_L P=_o_P W:=_o_W Z:=_o_Z U:=_o_U R=_o_R r=_o_r m=_o_m d=_o_d K=_o_K T:=_o_T
   local opt_no_color=$(( ${#_o_n} > 0 ))
   local opt_json=$(( ${#_o_J} > 0 ))
   local opt_quiet=$(( ${#_o_q} > 0 ))
@@ -155,16 +157,17 @@ finfo() {
   local opt_monitor=$(( ${#_o_m} > 0 ))
   local opt_duplicates=$(( ${#_o_d} > 0 ))
   local opt_keys=$(( ${#_o_K} > 0 ))
+  local keys_timeout=5; (( ${#_o_T} > 0 )) && keys_timeout="${_o_T[2]}"
   local opt_html=${html_output:-0}
 
-  # Long implies verbose
-  if (( opt_long )); then opt_verbose=1; fi
+  # Long implies verbose, and enables keys panel unless explicitly disabled
+  if (( opt_long )); then opt_verbose=1; if (( ! opt_no_header )); then opt_keys=1; fi; fi
 
   # Note: zparseopts already removes parsed options from $@, leaving only positional args.
   # Do not shift here, or we will drop the first non-option argument (the target path).
 
   if (( show_help )); then
-    echo "Usage: finfo [--brief|--long|--porcelain|--json|--html] [--width N] [--hash sha256|blake3] [--unit bytes|iec|si] [--icons|--no-icons] [--git|--no-git] [--monitor] [--duplicates] [--theme THEME] PATH..."
+    echo "Usage: finfo [--brief|--long|--porcelain|--json|--html] [--width N] [--hash sha256|blake3] [--unit bytes|iec|si] [--icons|--no-icons] [--git|--no-git] [--monitor] [--duplicates] [--keys|--no-keys] [--keys-timeout N] [--theme THEME] PATH..."
     _cleanup; return 0
   fi
 
@@ -697,7 +700,7 @@ finfo() {
     printf "  %s%s %-*s %s\n" "$LABEL" "$(_glyph info)" 12 "Quit:" "q = exit"
     # Single keypress with timeout (5s)
     local key
-    read -sk 1 -t 5 key || key=""
+    read -sk 1 -t "$keys_timeout" key || key=""
     case "$key" in
       o) command -v open >/dev/null 2>&1 && open -- "${targets[1]}" >/dev/null 2>&1 || true ;;
       r) command -v open >/dev/null 2>&1 && open -R -- "${targets[1]}" >/dev/null 2>&1 || true ;;
