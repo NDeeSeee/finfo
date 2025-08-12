@@ -205,6 +205,8 @@ const (
     modeConfirm
     modeHelp
     modeOpenWith
+    modeMoveToDir
+    modeRenamePattern
 )
 
 type previewMsg string
@@ -225,6 +227,8 @@ type model struct {
     originalArgs []string
     lastPreviewRaw string
     pendingAct action
+    pendingOps []op
+    pendingDir string
 }
 
 type jobs struct {
@@ -281,6 +285,8 @@ const (
     actOpenWith
     actCopyJSON
     actTrash
+    actMoveToDir
+    actRenamePattern
 )
 
 type actionItem struct {
@@ -291,6 +297,8 @@ type actionItem struct {
 func (a actionItem) Title() string       { return a.name }
 func (a actionItem) Description() string { return "" }
 func (a actionItem) FilterValue() string { return a.name }
+
+type op struct{ from, to string }
 
 func initialModelFromArgs(args []string) model {
 	items, _ := collectPaths(args, 5000)
@@ -314,6 +322,8 @@ func initialModelFromArgs(args []string) model {
         actionItem{name: "Open with… (macOS)", kind: actOpenWith},
         actionItem{name: "Copy JSON (preview)", kind: actCopyJSON},
         actionItem{name: "Move to Trash", kind: actTrash},
+        actionItem{name: "Move to directory…", kind: actMoveToDir},
+        actionItem{name: "Rename by pattern…", kind: actRenamePattern},
     }, list.NewDefaultDelegate(), 0, 0)
     sp := spinner.New()
     sp.Spinner = spinner.Points
@@ -530,6 +540,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                         m.pendingAct = actTrash
                         m.status = fmt.Sprintf("confirm move to Trash for %d item(s)? y/N", len(m.targetItems()))
                         return m, nil
+                    case actMoveToDir:
+                        m.mode = modeMoveToDir; m.filter.Placeholder = "destination directory"; m.filter.SetValue(""); m.filter.Focus(); return m, nil
+                    case actRenamePattern:
+                        m.mode = modeRenamePattern; m.filter.Placeholder = "pattern: {name} {ext} ({n})"; m.filter.SetValue("{name}{ext}"); m.filter.Focus(); return m, nil
                     default:
                         m.jobs.running += len(m.targetItems())
                         return m, m.runActionOnTargets(it.kind)
@@ -550,6 +564,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                 if m.pendingAct == actTrash {
                     m.pendingAct = 0
                     return m, tea.Batch(m.runActionOnTargets(actTrash), m.reloadList())
+            } else if m.pendingAct == actMoveToDir || m.pendingAct == actRenamePattern {
+                ops := m.pendingOps
+                // Run file operations
+                cmds := make([]tea.Cmd, 0, len(ops))
+                for _, op := range ops { from := op.from; to := op.to; cmds = append(cmds, func() tea.Msg { err := os.Rename(from, to); return jobDoneMsg{path: from + " -> " + to, act: m.pendingAct, err: err} }) }
+                m.pendingOps = nil; m.pendingAct = 0
+                return m, tea.Batch(tea.Batch(cmds...), m.reloadList())
                 }
                 return m, tea.Batch(m.runActionOnTargets(actClearQ), m.loadPreview())
             }
@@ -631,6 +652,76 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                     m.mode = modeList; m.filter.Blur(); return m, tea.Batch(tea.Batch(cmds...), m.loadPreview())
                 }
                 m.mode = modeList; m.filter.Blur(); return m, nil
+			} else if s == "esc" {
+				m.mode = modeList; m.filter.Blur()
+			}
+		}
+		return m, cmd
+	case modeMoveToDir:
+		var cmd tea.Cmd
+		m.filter, cmd = m.filter.Update(msg)
+		if k, ok := msg.(tea.KeyMsg); ok {
+			s := k.String()
+			if s == "enter" {
+				dst := strings.TrimSpace(m.filter.Value())
+				if dst != "" {
+					targets := m.targetItems()
+					ops := make([]op, 0, len(targets))
+					for i, t := range targets {
+						base := filepath.Base(t.path)
+						to := filepath.Join(dst, base)
+						// ensure unique with (n)
+						try := to
+						n := 1
+						for {
+							if _, err := os.Stat(try); os.IsNotExist(err) { break }
+							try = filepath.Join(dst, fmt.Sprintf("%s (%d)%s", strings.TrimSuffix(base, filepath.Ext(base)), n, filepath.Ext(base)))
+							n++
+						}
+						ops = append(ops, op{from: t.path, to: try})
+						_ = i
+					}
+					m.pendingOps = ops
+					m.pendingAct = actMoveToDir
+					m.mode = modeConfirm
+					m.status = fmt.Sprintf("confirm move %d item(s) to %s? y/N", len(ops), dst)
+					return m, nil
+				}
+				m.mode = modeList; m.filter.Blur(); return m, nil
+			} else if s == "esc" {
+				m.mode = modeList; m.filter.Blur()
+			}
+		}
+		return m, cmd
+	case modeRenamePattern:
+		var cmd tea.Cmd
+		m.filter, cmd = m.filter.Update(msg)
+		if k, ok := msg.(tea.KeyMsg); ok {
+			s := k.String()
+			if s == "enter" {
+				pat := strings.TrimSpace(m.filter.Value())
+				if pat != "" {
+					targets := m.targetItems()
+					ops := make([]op, 0, len(targets))
+					for idx, t := range targets {
+						dir := filepath.Dir(t.path)
+						bn := filepath.Base(t.path)
+						name := strings.TrimSuffix(bn, filepath.Ext(bn))
+						ext := filepath.Ext(bn)
+						out := pat
+						out = strings.ReplaceAll(out, "{name}", name)
+						out = strings.ReplaceAll(out, "{ext}", ext)
+						out = strings.ReplaceAll(out, "{n}", fmt.Sprintf("%d", idx+1))
+						to := filepath.Join(dir, out)
+						ops = append(ops, op{from: t.path, to: to})
+					}
+					m.pendingOps = ops
+					m.pendingAct = actRenamePattern
+					m.mode = modeConfirm
+					m.status = fmt.Sprintf("confirm rename %d item(s)? y/N", len(ops))
+					return m, nil
+				}
+				m.mode = modeList; m.filter.Blur(); return m, nil
 			} else if s == "esc" {
 				m.mode = modeList; m.filter.Blur()
 			}
