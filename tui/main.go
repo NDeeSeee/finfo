@@ -285,6 +285,7 @@ type model struct {
     // Large dir management
     dirAll []fileItem
     dirCap int
+    listPage int
     // Modes
     singleFile bool
 }
@@ -416,11 +417,11 @@ func initialModelFromArgs(args []string) model {
         if fi, err := os.Stat(args[0]); err == nil && fi.IsDir() {
             m.browsing = true
             m.cwd = args[0]
-            dirItems := scanDir(m.cwd)
-            sort.Slice(dirItems, func(i,j int) bool { if dirItems[i].isDir != dirItems[j].isDir { return dirItems[i].isDir } ; return strings.ToLower(filepath.Base(dirItems[i].path)) < strings.ToLower(filepath.Base(dirItems[j].path)) })
-            li2 := make([]list.Item, len(dirItems))
-            for i := range dirItems { li2[i] = dirItems[i] }
-            m.list.SetItems(li2)
+            items := scanDir(m.cwd)
+            sort.Slice(items, func(i,j int) bool { if items[i].isDir != items[j].isDir { return items[i].isDir } ; return strings.ToLower(filepath.Base(items[i].path)) < strings.ToLower(filepath.Base(items[j].path)) })
+            m.dirAll = items
+            m.listPage = 0
+            m.rebuildDirPage()
         } else if err == nil && !fi.IsDir() {
             m.singleFile = true
         }
@@ -457,6 +458,15 @@ func (m model) reloadList() tea.Cmd {
     for i := 0; i < len(m.list.Items()); i++ {
         if it, ok := m.list.Items()[i].(fileItem); ok && it.selected { prevSel[it.path] = true }
     }
+    if m.browsing {
+        cwd := m.cwd
+        return func() tea.Msg {
+            items := scanDir(cwd)
+            sort.Slice(items, func(i,j int) bool { if items[i].isDir != items[j].isDir { return items[i].isDir } ; return strings.ToLower(filepath.Base(items[i].path)) < strings.ToLower(filepath.Base(items[j].path)) })
+            for i := range items { items[i].selected = prevSel[items[i].path] }
+            return listDirMsg{items: items}
+        }
+    }
     args := m.originalArgs
     return func() tea.Msg {
         items, _ := collectPaths(args, 5000)
@@ -468,6 +478,24 @@ func (m model) reloadList() tea.Cmd {
 }
 
 type listMsg struct{ items []list.Item }
+type listDirMsg struct{ items []fileItem }
+
+func (m *model) rebuildDirPage() {
+    if !m.browsing { return }
+    total := len(m.dirAll)
+    if m.dirCap <= 0 { m.dirCap = 2000 }
+    pages := (total + m.dirCap - 1) / m.dirCap
+    if pages < 1 { pages = 1 }
+    if m.listPage >= pages { m.listPage = pages - 1 }
+    if m.listPage < 0 { m.listPage = 0 }
+    start := m.listPage * m.dirCap
+    end := start + m.dirCap
+    if end > total { end = total }
+    window := m.dirAll[start:end]
+    li := make([]list.Item, len(window))
+    for i := range window { li[i] = window[i] }
+    m.list.SetItems(li)
+}
 
 // Helper: determine target items (selected ones if any, otherwise current)
 func (m model) targetItems() []fileItem {
@@ -783,15 +811,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                 copyPathsJoined(paths)
             }
             m.status = "copied"
-		case key.Matches(msg, m.keys.Enter):
+        case key.Matches(msg, m.keys.Enter):
 			if m.browsing {
 				if it, ok := m.list.SelectedItem().(fileItem); ok {
 					if it.isDir {
 						m.dirStack = append(m.dirStack, m.cwd)
 						m.cwd = it.path
-						dirItems := scanDir(m.cwd)
-						li := make([]list.Item, len(dirItems)); for i := range dirItems { li[i] = dirItems[i] }
-						m.list.SetItems(li)
+                        items := scanDir(m.cwd)
+                        sort.Slice(items, func(i,j int) bool { if items[i].isDir != items[j].isDir { return items[i].isDir } ; return strings.ToLower(filepath.Base(items[i].path)) < strings.ToLower(filepath.Base(items[j].path)) })
+                        m.dirAll = items
+                        m.listPage = 0
+                        m.rebuildDirPage()
 						return m, m.loadPreview()
 					}
 				}
@@ -800,9 +830,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.browsing && len(m.dirStack) > 0 {
 				m.cwd = m.dirStack[len(m.dirStack)-1]
 				m.dirStack = m.dirStack[:len(m.dirStack)-1]
-				dirItems := scanDir(m.cwd)
-				li := make([]list.Item, len(dirItems)); for i := range dirItems { li[i] = dirItems[i] }
-				m.list.SetItems(li)
+                items := scanDir(m.cwd)
+                sort.Slice(items, func(i,j int) bool { if items[i].isDir != items[j].isDir { return items[i].isDir } ; return strings.ToLower(filepath.Base(items[i].path)) < strings.ToLower(filepath.Base(items[j].path)) })
+                m.dirAll = items
+                m.listPage = 0
+                m.rebuildDirPage()
 				return m, m.loadPreview()
 			}
 		case key.Matches(msg, m.keys.Open):
