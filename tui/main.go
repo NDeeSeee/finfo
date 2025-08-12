@@ -156,7 +156,7 @@ type finfoJSON struct {
 // ---------- UI ----------
 
 type keymap struct {
-    Up, Down, Enter, Quit, ToggleLong, Actions, Copy, Open, Reveal, Chmod, ClearQ, Refresh, Help, Filter, Select, SelectAll, ClearSel key.Binding
+    Up, Down, Enter, Quit, ToggleLong, Actions, Copy, Open, Reveal, Chmod, ClearQ, Refresh, Help, Filter, Select, SelectAll, ClearSel, Undo, JobLog key.Binding
 }
 
 // Implement help.KeyMap
@@ -170,7 +170,8 @@ func (k keymap) FullHelp() [][]key.Binding {
         {k.ToggleLong, k.Open, k.Reveal, k.Copy},
         {k.Chmod, k.ClearQ, k.Refresh},
         {k.Select, k.SelectAll, k.ClearSel},
-        {k.Actions, k.Help, k.Quit},
+        {k.Undo, k.JobLog, k.Actions},
+        {k.Help, k.Quit},
     }
 }
 
@@ -193,6 +194,8 @@ func defaultKeymap() keymap {
         Select:     key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "select")),
         SelectAll:  key.NewBinding(key.WithKeys("A"), key.WithHelp("A", "select all")),
         ClearSel:   key.NewBinding(key.WithKeys("V"), key.WithHelp("V", "clear selection")),
+        Undo:       key.NewBinding(key.WithKeys("U"), key.WithHelp("U", "undo last")),
+        JobLog:     key.NewBinding(key.WithKeys("J"), key.WithHelp("J", "job log")),
 	}
 }
 
@@ -207,6 +210,7 @@ const (
     modeOpenWith
     modeMoveToDir
     modeRenamePattern
+    modeOpsPreview
 )
 
 type previewMsg string
@@ -229,6 +233,24 @@ type model struct {
     pendingAct action
     pendingOps []op
     pendingDir string
+    opsOverlay viewport.Model
+    opsOverlayText string
+    jobLog []string
+    showJobLog bool
+    undo []executedOp
+}
+
+type executedOp struct {
+    act action
+    from string
+    to   string
+    reversible bool
+    at time.Time
+}
+
+func (m *model) pushUndo(op executedOp) {
+    m.undo = append(m.undo, op)
+    if len(m.undo) > 100 { m.undo = m.undo[len(m.undo)-100:] }
 }
 
 type jobs struct {
@@ -328,7 +350,8 @@ func initialModelFromArgs(args []string) model {
     sp := spinner.New()
     sp.Spinner = spinner.Points
     th := themeFromEnv()
-    return model{ list: l, preview: pv, help: help.New(), keys: defaultKeymap(), filter: in, long: true, mode: modeList, actions: acts, spin: sp, theme: th, originalArgs: append([]string{}, args...) }
+    ov := viewport.Model{ Width: 0, Height: 0 }
+    return model{ list: l, preview: pv, help: help.New(), keys: defaultKeymap(), filter: in, long: true, mode: modeList, actions: acts, spin: sp, theme: th, originalArgs: append([]string{}, args...), opsOverlay: ov }
 }
 
 func (m model) Init() tea.Cmd {
@@ -470,6 +493,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.list.SetSize(lw, lh)
         m.preview.Width = pw; m.preview.Height = ph
         m.actions.SetSize(msg.Width/2, msg.Height/2)
+        m.opsOverlay.Width = msg.Width - 6
+        m.opsOverlay.Height = msg.Height - 8
     case spinner.TickMsg:
         var cmd tea.Cmd
         m.spin, cmd = m.spin.Update(msg)
@@ -502,6 +527,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         case actOpen: m.status = "opened" 
         case actReveal: m.status = "revealed"
         case actClearQ: m.status = "quarantine cleared"
+        case actMoveToDir: m.status = "moved"
+        case actRenamePattern: m.status = "renamed"
+        case actTrash: m.status = "trashed"
         }
         return m, nil
 	case tea.KeyMsg:
@@ -543,7 +571,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                     case actMoveToDir:
                         m.mode = modeMoveToDir; m.filter.Placeholder = "destination directory"; m.filter.SetValue(""); m.filter.Focus(); return m, nil
                     case actRenamePattern:
-                        m.mode = modeRenamePattern; m.filter.Placeholder = "pattern: {name} {ext} ({n})"; m.filter.SetValue("{name}{ext}"); m.filter.Focus(); return m, nil
+                        m.mode = modeRenamePattern; m.filter.Placeholder = "pattern: {name}{ext} or {name}-{n}{ext}"; m.filter.SetValue("{name}{ext}"); m.filter.Focus(); return m, nil
                     default:
                         m.jobs.running += len(m.targetItems())
                         return m, m.runActionOnTargets(it.kind)
@@ -554,6 +582,26 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                 var cmd tea.Cmd
                 m.actions, cmd = m.actions.Update(msg)
                 return m, cmd
+            }
+        }
+        if m.mode == modeOpsPreview {
+            switch msg.Type {
+            case tea.KeyEsc:
+                m.mode = modeList
+                m.pendingAct = 0; m.pendingOps = nil
+                return m, nil
+            case tea.KeyEnter:
+                // Confirm and execute
+                if m.pendingAct == actMoveToDir || m.pendingAct == actRenamePattern {
+                    ops := m.pendingOps
+                    cmds := make([]tea.Cmd, 0, len(ops))
+                    for _, op := range ops { from := op.from; to := op.to; cmds = append(cmds, func() tea.Msg { err := os.Rename(from, to); return jobDoneMsg{path: from + " -> " + to, act: m.pendingAct, err: err} }) }
+                    m.jobs.running += len(ops)
+                    m.pendingOps = nil; m.pendingAct = 0
+                    m.mode = modeList
+                    return m, tea.Batch(tea.Batch(cmds...), m.reloadList())
+                }
+                return m, nil
             }
         }
         if m.mode == modeConfirm {
@@ -631,6 +679,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             m.mode = modeActions
             // Center overlay size is set in WindowSize
             return m, nil
+        case key.Matches(msg, m.keys.JobLog):
+            m.showJobLog = !m.showJobLog
+            return m, nil
 		}
 	}
 	// If entering input modes
@@ -683,8 +734,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					m.pendingOps = ops
 					m.pendingAct = actMoveToDir
-					m.mode = modeConfirm
-					m.status = fmt.Sprintf("confirm move %d item(s) to %s? y/N", len(ops), dst)
+					// Build dry-run overlay text
+					b := &strings.Builder{}
+					fmt.Fprintf(b, "Move preview → %s\n\n", dst)
+					for _, op := range ops { fmt.Fprintf(b, "%s\n  ↳ %s\n\n", op.from, op.to) }
+					m.opsOverlayText = b.String()
+					m.opsOverlay.SetContent(m.opsOverlayText)
+					m.mode = modeOpsPreview
+					m.status = "enter to confirm, esc to cancel"
 					return m, nil
 				}
 				m.mode = modeList; m.filter.Blur(); return m, nil
@@ -717,8 +774,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					}
 					m.pendingOps = ops
 					m.pendingAct = actRenamePattern
-					m.mode = modeConfirm
-					m.status = fmt.Sprintf("confirm rename %d item(s)? y/N", len(ops))
+					b := &strings.Builder{}
+					fmt.Fprintf(b, "Rename preview\n\n")
+					for _, op := range ops { fmt.Fprintf(b, "%s\n  ↳ %s\n\n", op.from, op.to) }
+					m.opsOverlayText = b.String()
+					m.opsOverlay.SetContent(m.opsOverlayText)
+					m.mode = modeOpsPreview
+					m.status = "enter to confirm, esc to cancel"
 					return m, nil
 				}
 				m.mode = modeList; m.filter.Blur(); return m, nil
@@ -788,6 +850,20 @@ func (m model) View() string {
         fmt.Fprintf(b, "Selection: space toggle, A all, V clear\n")
         fmt.Fprintf(b, "Misc: l toggle long, R refresh, q quit, ? help\n\n")
         fmt.Fprintf(b, "Batch ops apply to selected items; otherwise current item.")
+        overlay := m.theme.overlay.Render(b.String())
+        return base + "\n" + overlay
+    }
+    if m.mode == modeOpsPreview {
+        overlay := m.theme.overlay.Render(m.opsOverlayText)
+        return base + "\n" + overlay
+    }
+    if m.showJobLog {
+        // show last ~20 job logs
+        start := 0
+        if len(m.jobLog) > 20 { start = len(m.jobLog) - 20 }
+        b := &strings.Builder{}
+        fmt.Fprintf(b, "Job log (latest)\n\n")
+        for i := start; i < len(m.jobLog); i++ { fmt.Fprintf(b, "%s\n", m.jobLog[i]) }
         overlay := m.theme.overlay.Render(b.String())
         return base + "\n" + overlay
     }
