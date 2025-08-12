@@ -88,6 +88,10 @@ pages, headings, columns, delimiter, image_dims, about
 - Set `FINFO_TOPN` to adjust Top-N largest files in SUMMARY (default 5)
 - macOS integrations (mdls, sips, spctl, codesign, stapler, xattr) are best-effort and guarded
 
+## Dependencies
+
+See `dependencies/README.md` for essential and optional tools (install commands for macOS and Linux), fonts, and environment variables. finfo degrades gracefully when extras are missing.
+
 ## Tests
 
 Run the tiny golden test harness (requires `zsh`, JSON tests use `jq` when available):
