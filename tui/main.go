@@ -269,8 +269,8 @@ type model struct {
     showPreview bool
     // Preview async
     previewSeq int
-    previewCancel context.CancelFunc
     previewTimeout time.Duration
+    previewDelay time.Duration
     // Large dir management
     dirAll []fileItem
     dirCap int
@@ -393,7 +393,11 @@ func initialModelFromArgs(args []string) model {
     if v := os.Getenv("FINFOTUI_PREVIEW_MS"); v != "" {
         if n, err := strconv.Atoi(v); err == nil && n > 100 { timeoutMs = n }
     }
-    m := model{ list: l, preview: pv, help: help.New(), keys: defaultKeymap(), filter: in, long: true, mode: modeList, actions: acts, spin: sp, theme: th, originalArgs: append([]string{}, args...), opsOverlay: ov, showPreview: true, previewTimeout: time.Duration(timeoutMs) * time.Millisecond, dirCap: 5000 }
+    delayMs := 120
+    if v := os.Getenv("FINFOTUI_PREVIEW_DELAY_MS"); v != "" {
+        if n, err := strconv.Atoi(v); err == nil && n >= 0 { delayMs = n }
+    }
+    m := model{ list: l, preview: pv, help: help.New(), keys: defaultKeymap(), filter: in, long: true, mode: modeList, actions: acts, spin: sp, theme: th, originalArgs: append([]string{}, args...), opsOverlay: ov, showPreview: true, previewTimeout: time.Duration(timeoutMs) * time.Millisecond, previewDelay: time.Duration(delayMs) * time.Millisecond, dirCap: 5000 }
     // Enable directory-browsing mode when a single argument is a directory
     if len(args) == 1 {
         if fi, err := os.Stat(args[0]); err == nil && fi.IsDir() {
@@ -417,8 +421,7 @@ func (m model) loadPreview() tea.Cmd {
     if !m.showPreview || len(m.list.Items()) == 0 { return nil }
 	it, ok := m.list.SelectedItem().(fileItem)
 	if !ok { return nil }
-    // Cancel previous preview if running
-    if m.previewCancel != nil { m.previewCancel() }
+    // No explicit cancel func retained; sequence guard prevents stale updates
     args := finfoPreviewArgs(it.path, m.long)
     seq := m.previewSeq + 1
     m.previewSeq = seq
@@ -577,6 +580,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         return m, cmd
     case previewMsg:
         if msg.seq != m.previewSeq { return m, nil }
+        // If debounce tick (empty out), now run the real preview load
+        if msg.out == "" { return m, m.loadPreview() }
         // Try parse JSON, fallback to raw text
         var fj finfoJSON
         s := msg.out
@@ -717,10 +722,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, m.keys.Quit):
 			return m, tea.Quit
-		case key.Matches(msg, m.keys.Up), key.Matches(msg, m.keys.Down):
-			var cmd tea.Cmd
-			m.list, cmd = m.list.Update(msg)
-			return m, tea.Batch(cmd, m.loadPreview())
+        case key.Matches(msg, m.keys.Up), key.Matches(msg, m.keys.Down):
+            var cmd tea.Cmd
+            m.list, cmd = m.list.Update(msg)
+            // debounce preview to avoid thrash when scrolling
+            seq := m.previewSeq + 1
+            m.previewSeq = seq
+            delayed := tea.Tick(m.previewDelay, func(time.Time) tea.Msg { return previewMsg{seq: seq} })
+            return m, tea.Batch(cmd, delayed)
         case key.Matches(msg, m.keys.ToggleLong):
 			m.long = !m.long
 			return m, m.loadPreview()
