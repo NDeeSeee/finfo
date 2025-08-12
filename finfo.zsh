@@ -150,6 +150,16 @@ finfo() {
   done
   set -- "${argv_new[@]}"
 
+  # Gracefully handle accidental double invocation like: "finfo finfo tui ."
+  # If the first arg is literally "finfo" and the next token is a known subcommand, drop it.
+  if [[ "$1" == finfo ]]; then
+    case "${2:-}" in
+      tui|browse|diff|chmod|watch|ls|html|search)
+        shift
+      ;;
+    esac
+  fi
+
   # Subcommand: diff A B → side-by-side metadata diff (porcelain-based)
   if [[ "$1" == diff ]]; then shift; finfo_cmd_diff "$1" "$2"; _cleanup; return $?; fi
 
