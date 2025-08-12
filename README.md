@@ -1,5 +1,7 @@
 # finfo
 
+[![CI](https://github.com/NDeeSeee/finfo/actions/workflows/ci.yml/badge.svg)](https://github.com/NDeeSeee/finfo/actions/workflows/ci.yml)
+
 Fast, colorful file/dir inspector for zsh (macOS-friendly). Pretty human output by default; stable porcelain/JSON for tooling; modular helpers in `lib/`.
 
 ## Features
@@ -29,11 +31,14 @@ Planned reorg:
 ```bash
 finfo [--brief|--long|--porcelain|--json|--html] [--width N] [--hash sha256|blake3] \
       [--unit bytes|iec|si] [--icons|--no-icons] [--git|--no-git] [--monitor] [--duplicates] \
-      [--keys|--no-keys] [--keys-timeout N] PATH...
+      [--keys|--no-keys] [--keys-timeout N] [--copy-path|-C] [--copy-rel] [--copy-dir] \
+      [--copy-hash ALGO] [--open|-O] [--open-with APP] [--reveal|-E] [--edit APP|-e APP] \
+      [--chmod OCTAL] [--clear-quarantine|-Q] [--risk|-S] PATH...
 
 finfo diff A B             # metadata diff (porcelain-based)
 finfo chmod PATH           # interactive chmod helper (arrows/space/s/q)
 finfo watch PATH [secs]    # live sample size/mtime/quarantine changes
+finfo html --dashboard DIR # export dist/index.html dashboard for quick browsing
 ```
 
 ### Keys panel
@@ -88,6 +93,12 @@ pages, headings, columns, delimiter, image_dims, about
 - Set `FINFO_TOPN` to adjust Top-N largest files in SUMMARY (default 5)
 - macOS integrations (mdls, sips, spctl, codesign, stapler, xattr) are best-effort and guarded
 
+### Platform notes
+
+- macOS: rich Security/UTType fields; KEYS and open/reveal shortcuts use `open`, clipboard uses `pbcopy`.
+- Linux: Security/UTType shown as `unknown`; open uses `xdg-open`; clipboard uses `wl-copy`/`xclip` when available.
+- Porcelain/JSON schemas are stable; pretty output is human-oriented.
+
 ## Dependencies
 
 See `dependencies/README.md` for essential and optional tools (install commands for macOS and Linux), fonts, and environment variables. finfo degrades gracefully when extras are missing.
@@ -139,3 +150,44 @@ Run the tiny golden test harness (requires `zsh`, JSON tests use `jq` when avail
 ```bash
 ./tests/run.zsh
 ```
+
+- Set `REGEN=1` to regenerate goldens if needed.
+
+## Examples
+
+```bash
+# Pretty output
+finfo README.md
+
+# Porcelain (key\tvalue) suitable for awk
+finfo --porcelain README.md | column -t -s $'\t'
+
+# JSON + jq
+finfo --json README.md | jq .size
+
+# Shortcuts
+finfo -C README.md                  # copy absolute path
+finfo --open-with "Visual Studio Code" README.md
+finfo --copy-hash sha256 README.md  # copy checksum
+finfo --chmod 644 README.md         # change perms and confirm
+
+# Dashboard
+finfo html --dashboard . && open dist/index.html
+```
+
+## Shell integration (zsh completions)
+
+Basic zsh completions are provided in `scripts/completions/_finfo`.
+
+Enable by adding this to your `~/.zshrc`:
+
+```zsh
+fpath+=("$HOME/path/to/finfo/scripts/completions")
+autoload -Uz compinit && compinit
+```
+
+Then restart your shell.
+
+## Changelog
+
+See `CHANGELOG.md` for notable changes and versioning policy.

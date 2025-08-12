@@ -1,0 +1,34 @@
+#compdef finfo
+
+_arguments -s \
+  '(- 1 *)--help[Show help]' \
+  '(- 1 *)--version[Show version]' \
+  '(-J --json)'{-J,--json}'[JSON output]' \
+  '(-P --porcelain)'{-P,--porcelain}'[Porcelain key\tvalue output]' \
+  '(- --html)'--html[HTML single-file report]' \
+  '(-B --brief)'{-B,--brief}'[Brief mode]' \
+  '(-L --long)'{-L,--long}'[Long mode]' \
+  '(-m --monitor)'{-m,--monitor}'[Show growth rate (smoke)]' \
+  '(-d --duplicates)'{-d,--duplicates}'[Duplicate content scan]' \
+  '(-C --copy-path)'{-C,--copy-path}'[Copy absolute path]' \
+  '(- --copy-rel)'--copy-rel'[Copy relative path]' \
+  '(- --copy-dir)'--copy-dir'[Copy parent directory]' \
+  '(- --copy-hash)'--copy-hash'[Copy checksum]:algorithm:(sha256 blake3)' \
+  '(-O --open)'{-O,--open}'[Open in default app]' \
+  '(- --open-with)'--open-with'[Open with specific app]:app:_command_names -e' \
+  '(-E --reveal)'{-E,--reveal}'[Reveal in Finder]' \
+  '(-e --edit)'{-e,--edit}'[Open in editor]:editor:_command_names -e' \
+  '(- --chmod)'--chmod'[Change permissions]:octal' \
+  '(-Q --clear-quarantine)'{-Q,--clear-quarantine}'[Clear quarantine xattr (macOS)]' \
+  '(-S --risk)'{-S,--risk}'[Include risk stub in JSON]' \
+  '(- --keys)'--keys'[Show KEYS panel]' \
+  '(- --no-keys)'--no-keys'[Suppress KEYS under --long]' \
+  '(- --keys-timeout)'--keys-timeout'[Keypress timeout]:seconds' \
+  '(- --width)'--width'[Width override]:cols' \
+  '(- --hash)'--hash'[Checksum algo]:algorithm:(sha256 blake3)' \
+  '(- --unit)'--unit'[Unit scheme]:unit:(bytes iec si)' \
+  '(- --icons)'--icons'[Enable nerd icons]' \
+  '(- --no-icons)'--no-icons'[Disable icons]' \
+  '(- --git)'--git'[Force git info]' \
+  '(- --no-git)'--no-git'[Disable git info]' \
+  '1:targets:_path_files'
