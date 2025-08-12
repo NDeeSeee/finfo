@@ -169,8 +169,8 @@ func (k keymap) FullHelp() [][]key.Binding {
         {k.Up, k.Down, k.Filter},
         {k.ToggleLong, k.Open, k.Reveal, k.Copy},
         {k.Chmod, k.ClearQ, k.Refresh},
-        {k.Select, k.SelectAll, k.ClearSel},
-        {k.Undo, k.JobLog, k.Actions},
+        {k.Select, k.SelectAll, k.ClearSel, k.Undo},
+        {k.JobLog, k.Actions},
         {k.Help, k.Quit},
     }
 }
@@ -309,6 +309,7 @@ const (
     actTrash
     actMoveToDir
     actRenamePattern
+    actUndo
 )
 
 type actionItem struct {
@@ -346,6 +347,7 @@ func initialModelFromArgs(args []string) model {
         actionItem{name: "Move to Trash", kind: actTrash},
         actionItem{name: "Move to directory…", kind: actMoveToDir},
         actionItem{name: "Rename by pattern…", kind: actRenamePattern},
+        actionItem{name: "Undo last", kind: actUndo},
     }, list.NewDefaultDelegate(), 0, 0)
     sp := spinner.New()
     sp.Spinner = spinner.Points
@@ -465,6 +467,20 @@ func copyPathsJoined(paths []string) {
     if which("xclip") != "" { _ = exec.Command("sh", "-c", fmt.Sprintf("printf '%%s' %q | xclip -selection clipboard", joined)).Run(); return }
 }
 
+// Undo execution
+func (m model) runUndo() tea.Cmd {
+    if len(m.undo) == 0 { m.status = "nothing to undo"; return nil }
+    last := m.undo[len(m.undo)-1]
+    m.undo = m.undo[:len(m.undo)-1]
+    if !last.reversible { m.status = "cannot undo"; return nil }
+    from := last.from; to := last.to
+    m.jobs.running++
+    return func() tea.Msg {
+        err := os.Rename(from, to)
+        return jobDoneMsg{path: from + " -> " + to, act: actUndo, err: err}
+    }
+}
+
 func openWithPath(app, p string) {
     if runtime.GOOS == "darwin" {
         _ = exec.Command("open", "-a", app, p).Start()
@@ -530,6 +546,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         case actMoveToDir: m.status = "moved"
         case actRenamePattern: m.status = "renamed"
         case actTrash: m.status = "trashed"
+        case actUndo: m.status = "undone"
         }
         return m, nil
 	case tea.KeyMsg:
@@ -572,6 +589,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                         m.mode = modeMoveToDir; m.filter.Placeholder = "destination directory"; m.filter.SetValue(""); m.filter.Focus(); return m, nil
                     case actRenamePattern:
                         m.mode = modeRenamePattern; m.filter.Placeholder = "pattern: {name}{ext} or {name}-{n}{ext}"; m.filter.SetValue("{name}{ext}"); m.filter.Focus(); return m, nil
+                    case actUndo:
+                        // Trigger undo via keybinding or action
+                        return m, m.runUndo()
                     default:
                         m.jobs.running += len(m.targetItems())
                         return m, m.runActionOnTargets(it.kind)
@@ -682,6 +702,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         case key.Matches(msg, m.keys.JobLog):
             m.showJobLog = !m.showJobLog
             return m, nil
+        case key.Matches(msg, m.keys.Undo):
+            return m, m.runUndo()
 		}
 	}
 	// If entering input modes
