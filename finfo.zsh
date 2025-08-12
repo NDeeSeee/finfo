@@ -1,3 +1,4 @@
+#!/usr/bin/env zsh
 # finfo – rich file/dir inspector for zsh (macOS-friendly)
 # Lightweight, fast, colorful; minimal external calls.
 
