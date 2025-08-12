@@ -46,6 +46,7 @@ Why these matter: reduce cognitive load; surface context; be actionable; create 
   - `-i, --interactive` enter basic navigator (stub v1)
   - `-m, --monitor` watch size/xattrs/trust briefly and summarize deltas
   - `--duplicates` check digest across a search root
+  - `--keys` show a KEYS panel at the bottom and accept a single keypress to run a shortcut (TTY-only, 5s timeout)
   - `--open-with APP` suggest or open via `open -a APP` (darwin)
   - `--unit bytes|iec|si` size unit preference for display
 - Output
@@ -73,6 +74,13 @@ Planned new modules (iconic features):
 - `_summarize.zsh`: Lightweight content summarization (type-aware, opt-in)
 - `_tui.zsh`: Interactive navigator (fuzzy search, filters, keybindings)
 - `_integrations.zsh`: Glue for `jq`, `yq`, and processor handoffs
+- `_sandbox.zsh`: WASM micro‑sandbox harness and behavior capture
+- `_attest.zsh`: Sigstore keyless attestation + inferred SBOM-lite
+- `_dedupe.zsh`: Near‑duplicate detection (FastCDC + SimHash)
+- `_trace.zsh`: eBPF provenance tracer (process↔file↔socket)
+- `_redact.zsh`: Multimodal redaction and prompt‑injection checks
+- `_dashboard.zsh`: Rich HTML dashboard/static site exporter
+- `_index.zsh`: Catalog/SQLite/JSONL indexer and updater
 
 Proposed near-term reorganizations:
 - Create `lib/cmd/` to host all subcommands; update sources accordingly
@@ -173,6 +181,42 @@ Proposed near-term reorganizations:
 - CLI sugar: `finfo --json PATH | jq …` examples in docs; `finfo --porcelain | awk -F '\t' …` recipes.
 - Acceptance: examples validated in docs/tests; schema stability guaranteed.
 
+6) WASM micro‑sandbox “behavior print”
+- Run suspicious scripts/binaries in a Wasmtime/wasmer micro‑VM with seccomp and an eBPF tap; capture FS/DNS/socket/env/syscalls; emit a deterministic behavior signature and safe repro recipe.
+- CLI: `finfo run --sandbox PATH [--timeout N]`.
+- JSON addition: `behavior: { signature, fs_ops, net_ops, syscalls_sample }`.
+- Acceptance: exits safely with bounded time; no side‑effects outside sandbox.
+
+7) Sigstore keyless attestation + inferred SBOM
+- Infer a minimal SBOM (langs, deps, toolchain hints), mint a keyless Sigstore attestation (Fulcio/OIDC, Rekor), store alongside artifacts; verify later.
+- CLI: `finfo attest PATH…` and `finfo verify PATH…`.
+- JSON addition: `attestation: { sigstore: {log_index,…}, sbom: [...] }`.
+- Acceptance: offline verify works; logs linkable; graceful when OIDC unavailable.
+
+8) Multimodal redaction + prompt‑injection firewall
+- Redact secrets/PII across text, images’ EXIF, Office comments, notebooks; detect prompt‑injection patterns in Markdown/JSON.
+- CLI: `finfo scrub PATH [--ai --dry-run]`.
+- JSON addition: `redactions:[{type, location, preview}]`, `injection_findings[]`.
+- Acceptance: changes are previewable and reversible; no uploads by default.
+
+9) Near‑duplicate radar (FastCDC + SimHash/LSH)
+- Detect structure‑preserving clones even after formatting/repack (archives, code); suggest centralization targets and byte‑savings.
+- CLI: `finfo similar DIR [--across GIT_ROOT]`.
+- JSON addition: `similar_groups:[{rep, members:[{path, sim}] }]`.
+- Acceptance: sub‑linear scans with caps; reproducible groups.
+
+10) eBPF live provenance graph
+- Temporarily attach eBPF probes during a command to correlate process→file→socket edges; emit a compact provenance graph with critical path and cacheable artifacts.
+- CLI: `finfo trace -- cmd …`.
+- JSON addition: `provenance.dynamic_graph`.
+- Acceptance: requires root/entitlements; no persistent probes; clear tear‑down.
+
+11) Rich HTML Dashboard export + Catalog mode
+- Generate a single‑page, aesthetic dashboard (search, filters/facets, sortable tables, in‑page previews, provenance/risk badges). Optionally back by a local catalog (SQLite/JSONL) for cross‑session exploration.
+- CLI: `finfo html --dashboard PATH…` (static export) and `finfo catalog --init DIR`, `finfo catalog --update DIR`.
+- Artifacts: `dist/index.html`, `dist/assets/*`, `catalog.sqlite|catalog.jsonl`.
+- Acceptance: works offline, no trackers; incremental updates; themable.
+
 ## Non-goals for now
 - Full Bubble Tea TUI; deep provenance timelines; AI summaries; heavy scanners
 - Exception: Phase 5 introduces opt-in, lightweight versions of risk scoring, summarization, and anomaly detection with strict guardrails and caching.
@@ -189,6 +233,12 @@ Proposed near-term reorganizations:
 - `provenance.graph`: collapsed adjacency list with labels and flags
 - `summary`: `{ text, highlights: [{label, value}] }`
 - `anomalies[]`: `[{kind, score, explain}]`
+- `behavior`: `{ signature, fs_ops, net_ops, syscalls_sample }`
+- `attestation`: `{ sigstore: {log_index,…}, sbom: [ {name, version, type} ] }`
+- `redactions[]`: `[{type, location, preview}]`
+- `similar_groups[]`: `[{rep, members:[{path, sim}]}]`
+- `provenance.dynamic_graph`: collapsed adjacency for eBPF trace
+- `catalog`: `{ entry_id, index_time, source_root }`
 
 ## Testing
 - Golden outputs for porcelain/json for: text file, archive, dir (small), Mach-O, symlink
@@ -209,8 +259,9 @@ Proposed near-term reorganizations:
 11) Phase 1.11: `--html` minimal report [DONE]
 12) Phase 1.12: Modularization into `lib/` helpers and `lib/cmd/` subcommands [DONE]
 13) Phase 1.13: Move subcommands into `lib/cmd/` directory [DONE]
-14) Phase 1.14: Add docs/ with JSON schema and examples; tests/ with golden outputs [NEXT]
- 15) Phase 5 scaffolding: add module stubs `_risk.zsh`, `_summarize.zsh`, `_anomaly.zsh`, `_tui.zsh` (lazy-loaded) and extend JSON schema [PLANNED]
+14) Phase 1.14: Add docs/ with JSON schema and examples; tests/ with golden outputs [IN PROGRESS]
+15) Phase 1.15: KEYS panel and shortcut actions (`--keys`) [NEXT]
+16) Phase 5 scaffolding: add module stubs `_risk.zsh`, `_summarize.zsh`, `_anomaly.zsh`, `_tui.zsh`, `_dashboard.zsh`, `_index.zsh`, `_dedupe.zsh`, `_attest.zsh`, `_sandbox.zsh`, `_trace.zsh`, `_redact.zsh` (lazy‑loaded) and extend JSON schema [PLANNED]
 
 ## Risks and mitigations
 - Performance on large dirs: cap counts, show “approximate” beyond N entries

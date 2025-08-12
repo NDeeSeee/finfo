@@ -112,6 +112,7 @@ finfo() {
       --no-icons)    argv_new+=(-b);;
       --monitor)     argv_new+=(-m);;
       --duplicates)  argv_new+=(-d);;
+      --keys)        argv_new+=(-K);;
       --html)        html_output=1;;
       --help)        show_help=1;;
       *)             argv_new+=("$1");;
@@ -129,9 +130,9 @@ finfo() {
   # Subcommand: chmod PATH → interactive chmod helper (arrow-based)
   if [[ "$1" == chmod ]]; then shift; finfo_cmd_chmod "$1"; _cleanup; return $?; fi
 
-  typeset -a _o_n _o_J _o_q _o_c _o_v _o_G _o_b _o_H _o_k _o_s _o_B _o_L _o_P _o_W _o_Z _o_R _o_r _o_m _o_d
+  typeset -a _o_n _o_J _o_q _o_c _o_v _o_G _o_b _o_H _o_k _o_s _o_B _o_L _o_P _o_W _o_Z _o_R _o_r _o_m _o_d _o_K
   typeset -a _o_U
-  zparseopts -D -E n=_o_n J=_o_J q=_o_q c=_o_c v=_o_v G=_o_G b=_o_b H=_o_H k=_o_k s=_o_s B=_o_B L=_o_L P=_o_P W:=_o_W Z:=_o_Z U:=_o_U R=_o_R r=_o_r m=_o_m d=_o_d
+  zparseopts -D -E n=_o_n J=_o_J q=_o_q c=_o_c v=_o_v G=_o_G b=_o_b H=_o_H k=_o_k s=_o_s B=_o_B L=_o_L P=_o_P W:=_o_W Z:=_o_Z U:=_o_U R=_o_R r=_o_r m=_o_m d=_o_d K=_o_K
   local opt_no_color=$(( ${#_o_n} > 0 ))
   local opt_json=$(( ${#_o_J} > 0 ))
   local opt_quiet=$(( ${#_o_q} > 0 ))
@@ -153,6 +154,7 @@ finfo() {
   local opt_force_git=$(( ${#_o_r} > 0 ))
   local opt_monitor=$(( ${#_o_m} > 0 ))
   local opt_duplicates=$(( ${#_o_d} > 0 ))
+  local opt_keys=$(( ${#_o_K} > 0 ))
   local opt_html=${html_output:-0}
 
   # Long implies verbose
@@ -683,6 +685,26 @@ finfo() {
   # Duplicate finder (pretty-only, on demand)
   if (( opt_duplicates )) && (( ! opt_json && ! opt_porcelain && ! opt_compact )); then
     finfo_cmd_duplicates "${targets[@]}"
+  fi
+
+  # KEYS panel (TTY-only, pretty-only)
+  if (( opt_keys )) && (( ! opt_json && ! opt_porcelain && ! opt_compact )) && [[ -t 1 ]]; then
+    printf "\n"
+    _section "KEYS" actions
+    printf "  %s%s %-*s %s\n" "$LABEL" "$(_glyph bolt)" 12 "Open:" "o = open in default app"
+    printf "  %s%s %-*s %s\n" "$LABEL" "$(_glyph link)" 12 "Reveal:" "r = reveal in Finder"
+    printf "  %s%s %-*s %s\n" "$LABEL" "$(_glyph info)" 12 "Copy:" "p = copy absolute path"
+    printf "  %s%s %-*s %s\n" "$LABEL" "$(_glyph info)" 12 "Quit:" "q = exit"
+    # Single keypress with timeout (5s)
+    local key
+    read -sk 1 -t 5 key || key=""
+    case "$key" in
+      o) command -v open >/dev/null 2>&1 && open -- "${targets[1]}" >/dev/null 2>&1 || true ;;
+      r) command -v open >/dev/null 2>&1 && open -R -- "${targets[1]}" >/dev/null 2>&1 || true ;;
+      p) printf "%s" "${targets[1]:A}" | pbcopy 2>/dev/null || true; printf "  %sCopied path to clipboard%s\n" "$DIM" "$RESET" ;;
+      q|'') : ;;
+      *) : ;;
+    esac
   fi
 
   # Final cleanup once
