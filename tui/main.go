@@ -187,6 +187,7 @@ const (
     modeActions
     modeConfirm
     modeHelp
+    modeOpenWith
 )
 
 type previewMsg string
@@ -205,6 +206,7 @@ type model struct {
     spin    spinner.Model
     theme   theme
     originalArgs []string
+    lastPreviewRaw string
 }
 
 type jobs struct {
@@ -258,6 +260,8 @@ const (
     actCopy
     actClearQ
     actChmod
+    actOpenWith
+    actCopyJSON
 )
 
 type actionItem struct {
@@ -288,6 +292,8 @@ func initialModelFromArgs(args []string) model {
         actionItem{name: "Copy path(s)", kind: actCopy},
         actionItem{name: "Clear quarantine", kind: actClearQ},
         actionItem{name: "Change permissions (chmod)", kind: actChmod},
+        actionItem{name: "Open with… (macOS)", kind: actOpenWith},
+        actionItem{name: "Copy JSON (preview)", kind: actCopyJSON},
     }, list.NewDefaultDelegate(), 0, 0)
     sp := spinner.New()
     sp.Spinner = spinner.Points
@@ -397,6 +403,22 @@ func copyPathsJoined(paths []string) {
     if which("xclip") != "" { _ = exec.Command("sh", "-c", fmt.Sprintf("printf '%%s' %q | xclip -selection clipboard", joined)).Run(); return }
 }
 
+func openWithPath(app, p string) {
+    if runtime.GOOS == "darwin" {
+        _ = exec.Command("open", "-a", app, p).Start()
+    } else {
+        openPath(p)
+    }
+}
+
+func copyText(s string) {
+    if runtime.GOOS == "darwin" && which("pbcopy") != "" {
+        cmd := exec.Command("pbcopy"); stdin, _ := cmd.StdinPipe(); _ = cmd.Start(); _, _ = stdin.Write([]byte(s)); _ = stdin.Close(); _ = cmd.Wait(); return
+    }
+    if which("wl-copy") != "" { _ = exec.Command("wl-copy", s).Run(); return }
+    if which("xclip") != "" { _ = exec.Command("sh", "-c", fmt.Sprintf("printf '%%s' %q | xclip -selection clipboard", s)).Run(); return }
+}
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
@@ -417,6 +439,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
         // Try parse JSON, fallback to raw text
         var fj finfoJSON
         s := string(msg)
+        m.lastPreviewRaw = s
         if err := json.Unmarshal([]byte(s), &fj); err == nil && fj.Name != "" {
             b := &strings.Builder{}
             fmt.Fprintf(b, "%s\n", lipgloss.NewStyle().Bold(true).Render(fj.Name))
@@ -468,6 +491,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                         return m, nil
                     case actChmod:
                         m.mode = modeChmod; m.filter.Placeholder = "octal (e.g. 644)"; m.filter.SetValue(""); m.filter.Focus(); return m, nil
+                    case actOpenWith:
+                        m.mode = modeOpenWith; m.filter.Placeholder = "app name (e.g. Preview)"; m.filter.SetValue(""); m.filter.Focus(); return m, nil
+                    case actCopyJSON:
+                        if m.lastPreviewRaw != "" { copyText(m.lastPreviewRaw); m.status = "JSON copied" }
+                        m.mode = modeList; return m, nil
                     default:
                         m.jobs.running += len(m.targetItems())
                         return m, m.runActionOnTargets(it.kind)
@@ -565,6 +593,27 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
                     m.mode = modeList; m.filter.Blur(); return m, tea.Batch(tea.Batch(cmds...), m.loadPreview())
                 }
                 m.mode = modeList; m.filter.Blur(); return m, nil
+			} else if s == "esc" {
+				m.mode = modeList; m.filter.Blur()
+			}
+		}
+		return m, cmd
+	case modeOpenWith:
+		var cmd tea.Cmd
+		m.filter, cmd = m.filter.Update(msg)
+		if k, ok := msg.(tea.KeyMsg); ok {
+			s := k.String()
+			if s == "enter" {
+				app := strings.TrimSpace(m.filter.Value())
+				targets := m.targetItems()
+				if app != "" && len(targets) > 0 {
+					cmds := make([]tea.Cmd, 0, len(targets))
+					for _, t := range targets { p := t.path; a := app; cmds = append(cmds, func() tea.Msg { openWithPath(a, p); return jobDoneMsg{path: p, act: actOpenWith, err: nil} }) }
+					m.jobs.running += len(targets)
+					m.status = "opened with"
+					m.mode = modeList; m.filter.Blur(); return m, tea.Batch(tea.Batch(cmds...), m.loadPreview())
+				}
+				m.mode = modeList; m.filter.Blur(); return m, nil
 			} else if s == "esc" {
 				m.mode = modeList; m.filter.Blur()
 			}
