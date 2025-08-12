@@ -179,6 +179,7 @@ type finfoJSON struct {
 type keymap struct {
     Up, Down, Enter, Back, Quit, ToggleLong, TogglePreview, Actions, Copy, Open, Reveal, Chmod, ClearQ, Refresh, Help, Filter, Select, SelectAll, ClearSel, Undo, JobLog key.Binding
     PagePrev, PageNext, Jump1, Jump2, Jump3, Jump4, Jump5, Jump6, JumpTop, JumpBottom key.Binding
+    DirPrevPage, DirNextPage key.Binding
 }
 
 // Implement help.KeyMap
@@ -222,6 +223,8 @@ func defaultKeymap() keymap {
         JobLog:     key.NewBinding(key.WithKeys("J"), key.WithHelp("J", "job log")),
         PagePrev:   key.NewBinding(key.WithKeys("["), key.WithHelp("[", "prev page")),
         PageNext:   key.NewBinding(key.WithKeys("]"), key.WithHelp("]", "next page")),
+        DirPrevPage: key.NewBinding(key.WithKeys("<"), key.WithHelp("<", "prev dir page")),
+        DirNextPage: key.NewBinding(key.WithKeys(">"), key.WithHelp(">", "next dir page")),
         Jump1:      key.NewBinding(key.WithKeys("1"), key.WithHelp("1", "Hdr")),
         Jump2:      key.NewBinding(key.WithKeys("2"), key.WithHelp("2", "Ess")),
         Jump3:      key.NewBinding(key.WithKeys("3"), key.WithHelp("3", "Time")),
@@ -871,6 +874,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             m.mode = modeActions
             // Center overlay size is set in WindowSize
             return m, nil
+        case key.Matches(msg, m.keys.DirPrevPage):
+            if m.browsing && len(m.dirAll) > m.dirCap { m.listPage--; m.rebuildDirPage(); return m, nil }
+        case key.Matches(msg, m.keys.DirNextPage):
+            if m.browsing && len(m.dirAll) > m.dirCap { m.listPage++; m.rebuildDirPage(); return m, nil }
         case key.Matches(msg, m.keys.JobLog):
             m.showJobLog = !m.showJobLog
             return m, nil
@@ -1031,7 +1038,16 @@ func (m model) View() string {
 	if m.filter.Focused() {
 		inputLine = "\n" + m.filter.View()
 	}
-    base := title + "\n" + lipgloss.JoinHorizontal(lipgloss.Top, left, right) + inputLine + "\n" + m.help.View(m.keys) + "  " + status + "\n"
+    // Footer shows page hint for large dirs
+    footer := m.help.View(m.keys) + "  " + status
+    if m.browsing {
+        total := len(m.dirAll)
+        if m.dirCap > 0 && total > m.dirCap {
+            pages := (total + m.dirCap - 1) / m.dirCap
+            footer += fmt.Sprintf("  |  Page %d/%d (</> to switch)", m.listPage+1, pages)
+        }
+    }
+    base := title + "\n" + lipgloss.JoinHorizontal(lipgloss.Top, left, right) + inputLine + "\n" + footer + "\n"
     if m.mode == modeActions {
         w := lipgloss.Width(base)
         overlay := m.theme.overlay.Render("Actions\n" + m.actions.View() + "\nenter to run, esc to close")
