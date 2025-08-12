@@ -236,7 +236,7 @@ const (
     modeOpsPreview
 )
 
-type previewMsg struct{ seq int; out string }
+type previewMsg struct{ seq int; out string; err string }
 
 type model struct {
 	list    list.Model
@@ -274,6 +274,8 @@ type model struct {
     // Large dir management
     dirAll []fileItem
     dirCap int
+    // Modes
+    singleFile bool
 }
 
 type executedOp struct {
@@ -408,6 +410,8 @@ func initialModelFromArgs(args []string) model {
             li2 := make([]list.Item, len(dirItems))
             for i := range dirItems { li2[i] = dirItems[i] }
             m.list.SetItems(li2)
+        } else if err == nil && !fi.IsDir() {
+            m.singleFile = true
         }
     }
     return m
@@ -429,9 +433,11 @@ func (m model) loadPreview() tea.Cmd {
         ctx, cancel := context.WithTimeout(context.Background(), m.previewTimeout)
         // store cancel so next call can cancel in-flight
         // Note: model is captured immutably; we pass seq to validate latest
-        out, _ := runCmdTimeout(ctx, args[0], args[1:]...)
+        out, err := runCmdTimeout(ctx, args[0], args[1:]...)
         cancel()
-        return previewMsg{seq: seq, out: out}
+        emsg := ""
+        if err != nil { emsg = err.Error() }
+        return previewMsg{seq: seq, out: out, err: emsg}
 	}
 }
 
@@ -602,7 +608,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
             out, _ := runCmdTimeout(ctx, args[0], args[1:]...)
             if strings.TrimSpace(out) != "" { m.preview.SetContent(out) } else { m.preview.SetContent(s) }
         }
-        m.status = ""
+        if msg.err != "" {
+            m.status = "preview error: " + msg.err
+        } else {
+            m.status = ""
+        }
     case listMsg:
         m.list.SetItems(msg.items)
         return m, m.loadPreview()
