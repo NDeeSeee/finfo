@@ -570,6 +570,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		// Layout: left list 40%, right preview 60%
+        if m.singleFile {
+            m.preview.Width = msg.Width - 2
+            m.preview.Height = msg.Height - 4
+            return m, nil
+        }
         lw := int(float64(msg.Width) * 0.45)
 		if lw < 30 { lw = 30 }
         pw := msg.Width - lw - 1
@@ -733,6 +738,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case key.Matches(msg, m.keys.Quit):
 			return m, tea.Quit
         case key.Matches(msg, m.keys.Up), key.Matches(msg, m.keys.Down):
+            if m.singleFile {
+                var cmd tea.Cmd
+                m.preview, cmd = m.preview.Update(msg)
+                return m, cmd
+            }
             var cmd tea.Cmd
             m.list, cmd = m.list.Update(msg)
             // debounce preview to avoid thrash when scrolling
@@ -950,6 +960,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m model) View() string {
     title := m.theme.title.Render(" finfo TUI (alpha)")
+    if m.singleFile {
+        // Minimalist single-file view: just header + preview + help line
+        status := m.theme.status.Render(strings.TrimSpace(m.status))
+        base := title + "\n" + m.preview.View() + "\n" + m.help.View(m.keys) + "  " + status + "\n"
+        return base
+    }
     left := m.list.View()
     right := ""
     if m.showPreview { right = m.preview.View() }
